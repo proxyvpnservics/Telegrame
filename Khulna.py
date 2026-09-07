@@ -388,7 +388,7 @@ def show_all_countries_menu(call):
   )
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("pnl_") or call.data.startswith("country_"))
+@bot.callback_query_handler(func=lambda call: call.data.startswith("pnl_") or call.data.startswith("cntry_"))
 def dynamic_navigation_handler(call):
   user_id = call.from_user.id
   balance, _ = get_user_balance_by_id(user_id)
@@ -404,7 +404,7 @@ def dynamic_navigation_handler(call):
         path_key = f"Panel 1/{country}"
         stock_count = len(get_stock(path_key))
         btn_text = f"🌍 {country} [{stock_count} pcs]"
-        row.append(InlineKeyboardButton(btn_text, callback_data=f"country_Panel_1_{country.replace(' ', '_')}"))
+        row.append(InlineKeyboardButton(btn_text, callback_data=f"cntry_Panel_1_{country.replace(' ', '_')}"))
         if len(row) == 2:
           markup.add(*row)
           row = []
@@ -428,7 +428,7 @@ def dynamic_navigation_handler(call):
         path_key = f"Panel 2/{country}"
         stock_count = len(get_stock(path_key))
         btn_text = f"🌍 {country} [{stock_count} pcs]"
-        row.append(InlineKeyboardButton(btn_text, callback_data=f"country_Panel_2_{country.replace(' ', '_')}"))
+        row.append(InlineKeyboardButton(btn_text, callback_data=f"cntry_Panel_2_{country.replace(' ', '_')}"))
         if len(row) == 2:
           markup.add(*row)
           row = []
@@ -452,7 +452,7 @@ def dynamic_navigation_handler(call):
         path_key = f"Panel 3/{country}"
         stock_count = len(get_stock(path_key))
         btn_text = f"🌍 {country} [{stock_count} pcs]"
-        row.append(InlineKeyboardButton(btn_text, callback_data=f"country_Panel_3_{country.replace(' ', '_')}"))
+        row.append(InlineKeyboardButton(btn_text, callback_data=f"cntry_Panel_3_{country.replace(' ', '_')}"))
         if len(row) == 2:
           markup.add(*row)
           row = []
@@ -513,11 +513,11 @@ def dynamic_navigation_handler(call):
         )
       return
 
-  elif call.data.startswith("country_"):
+  elif call.data.startswith("cntry_"):
     parts = call.data.split("_", 3)
     panel_num = parts[1] # "1", "2", or "3"
     panel_name = f"Panel {panel_num}"
-    rest = parts[3] # Country name
+    rest = parts[3] # Country name slug
     
     country_name = None
     if panel_num == "1":
