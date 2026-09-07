@@ -275,7 +275,7 @@ def update_stock(path_key, remaining_items):
 def get_main_menu():
   markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
   markup.add(
-      KeyboardButton("📱 Panels"),
+      KeyboardButton("📱 Telegram Sell"),
       KeyboardButton("👤 Profile"),
       KeyboardButton("💰 Deposit"),
       KeyboardButton("🔗 Refer"),
@@ -369,7 +369,7 @@ def add_stock_handler(message):
     bot.reply_to(message, f"❌ Error occurred: {e}")
 
 
-@bot.message_handler(func=lambda message: message.text == "📱 Panels")
+@bot.message_handler(func=lambda message: message.text == "📱 Telegram Sell")
 def telegram_button_handler(message):
   bot.send_message(
       message.chat.id, 
