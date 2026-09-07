@@ -249,7 +249,7 @@ def add_buy_count(user_id):
 
 def get_stock(path_key):
   try:
-    safe_key = path_key.replace(" ", "_")
+    safe_key = path_key.replace(" ", "_").replace(",", "").replace(".", "")
     url = f"{FIREBASE_URL}stock/{safe_key}.json"
     res = requests.get(url, timeout=10)
     data = res.json()
@@ -265,7 +265,7 @@ def get_stock(path_key):
 
 def update_stock(path_key, remaining_items):
   try:
-    safe_key = path_key.replace(" ", "_")
+    safe_key = path_key.replace(" ", "_").replace(",", "").replace(".", "")
     url = f"{FIREBASE_URL}stock/{safe_key}.json"
     requests.put(url, json=remaining_items, timeout=10)
   except Exception as e:
@@ -404,7 +404,8 @@ def dynamic_navigation_handler(call):
         path_key = f"Panel 1/{country}"
         stock_count = len(get_stock(path_key))
         btn_text = f"🌍 {country} [{stock_count} pcs]"
-        row.append(InlineKeyboardButton(btn_text, callback_data=f"cntry_Panel_1_{country.replace(' ', '_')}"))
+        callback_val = f"cntry_1_{country.replace(' ', '_')}"
+        row.append(InlineKeyboardButton(btn_text, callback_data=callback_val))
         if len(row) == 2:
           markup.add(*row)
           row = []
@@ -428,7 +429,8 @@ def dynamic_navigation_handler(call):
         path_key = f"Panel 2/{country}"
         stock_count = len(get_stock(path_key))
         btn_text = f"🌍 {country} [{stock_count} pcs]"
-        row.append(InlineKeyboardButton(btn_text, callback_data=f"cntry_Panel_2_{country.replace(' ', '_')}"))
+        callback_val = f"cntry_2_{country.replace(' ', '_')}"
+        row.append(InlineKeyboardButton(btn_text, callback_data=callback_val))
         if len(row) == 2:
           markup.add(*row)
           row = []
@@ -452,7 +454,8 @@ def dynamic_navigation_handler(call):
         path_key = f"Panel 3/{country}"
         stock_count = len(get_stock(path_key))
         btn_text = f"🌍 {country} [{stock_count} pcs]"
-        row.append(InlineKeyboardButton(btn_text, callback_data=f"cntry_Panel_3_{country.replace(' ', '_')}"))
+        callback_val = f"cntry_3_{country.replace(' ', '_')}"
+        row.append(InlineKeyboardButton(btn_text, callback_data=callback_val))
         if len(row) == 2:
           markup.add(*row)
           row = []
@@ -514,10 +517,10 @@ def dynamic_navigation_handler(call):
       return
 
   elif call.data.startswith("cntry_"):
-    parts = call.data.split("_", 3)
+    parts = call.data.split("_", 2)
     panel_num = parts[1] # "1", "2", or "3"
     panel_name = f"Panel {panel_num}"
-    rest = parts[3] # Country name slug
+    slug = parts[2] # Country name slug
     
     country_name = None
     if panel_num == "1":
@@ -528,7 +531,7 @@ def dynamic_navigation_handler(call):
       target_dict = PANEL_3_COUNTRIES
 
     for c in target_dict.keys():
-      if rest == c.replace(" ", "_"):
+      if slug == c.replace(" ", "_"):
         country_name = c
         break
         
