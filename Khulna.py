@@ -34,6 +34,59 @@ PANEL_PRICES = {
     "Panel 4": 1.5,
 }
 
+# Panel 1 Country Prices
+PANEL_1_COUNTRIES = {
+    "Colombia": 0.5,
+    "India": 0.55,
+    "Bangladesh": 0.55,
+    "United States": 0.55,
+    "Indonesia": 0.6,
+    "Chile": 0.65,
+    "Kenya": 0.65,
+    "Myanmar": 0.65,
+    "Angola": 0.68,
+    "Afghanistan": 0.7,
+    "Zimbabwe": 0.7,
+    "Sudan": 0.7,
+    "Cameroon": 0.7,
+    "Madagascar": 0.7,
+    "Tanzania": 0.6,
+    "Algeria": 0.75,
+    "Jamaica": 0.75,
+    "Sri Lanka": 0.8,
+    "Eswatini": 0.8,
+    "Burkina Faso": 0.8,
+}
+
+# Panel 2 Country Prices
+PANEL_2_COUNTRIES = {
+    "Myanmar": 0.35,
+    "Colombia": 0.55,
+    "Uganda": 0.55,
+    "Togo": 0.55,
+    "Sudan": 0.58,
+    "Zimbabwe": 0.6,
+    "Nigeria": 0.6,
+    "Congo, The Democratic": 0.6,
+    "Sierra Leone": 0.6,
+    "Madagascar": 0.6,
+    "Angola": 0.65,
+    "Niger": 0.65,
+    "Pakistan": 0.65,
+    "Zambia": 0.65,
+    "India": 0.65,
+    "Chile": 0.65,
+    "Afghanistan": 0.65,
+    "Ghana": 0.65,
+    "Cuba": 0.7,
+    "Thailand": 0.7,
+}
+
+# Panel 3 Country Prices
+PANEL_3_COUNTRIES = {
+    "Nigeria": 0.5,
+}
+
 bot = telebot.TeleBot(API_TOKEN, parse_mode="HTML")
 app = Flask(__name__)
 
@@ -194,10 +247,10 @@ def add_buy_count(user_id):
     print(f"Firebase add_buy_count Error: {e}")
 
 
-def get_stock(panel_name):
+def get_stock(path_key):
   try:
-    safe_panel_key = panel_name.replace(" ", "_")
-    url = f"{FIREBASE_URL}stock/{safe_panel_key}.json"
+    safe_key = path_key.replace(" ", "_")
+    url = f"{FIREBASE_URL}stock/{safe_key}.json"
     res = requests.get(url, timeout=10)
     data = res.json()
     if isinstance(data, list):
@@ -210,10 +263,10 @@ def get_stock(panel_name):
     return []
 
 
-def update_stock(panel_name, remaining_items):
+def update_stock(path_key, remaining_items):
   try:
-    safe_panel_key = panel_name.replace(" ", "_")
-    url = f"{FIREBASE_URL}stock/{safe_panel_key}.json"
+    safe_key = path_key.replace(" ", "_")
+    url = f"{FIREBASE_URL}stock/{safe_key}.json"
     requests.put(url, json=remaining_items, timeout=10)
   except Exception as e:
     print(f"Firebase update_stock Error: {e}")
@@ -282,7 +335,7 @@ def add_stock_handler(message):
     if len(text_parts) < 2:
       bot.reply_to(
           message,
-          "⚠️ Please write in the correct format:\n<code>/addstock Panel 1 | product1\nproduct2</code>",
+          "⚠️ Please write in the correct format:\n<code>/addstock Panel 1/India | product1\nproduct2</code>",
           parse_mode="HTML",
       )
       return
@@ -290,12 +343,12 @@ def add_stock_handler(message):
     content = text_parts[1]
     if "|" not in content:
       bot.reply_to(
-          message, "⚠️ Please put a pipe (|) between the panel name and the product."
+          message, "⚠️ Please put a pipe (|) between the path and the product."
       )
       return
 
-    panel_name, products_raw = content.split("|", 1)
-    panel_name = panel_name.strip()
+    target_path, products_raw = content.split("|", 1)
+    target_path = target_path.strip()
     
     new_products = [p.strip() for p in products_raw.split("\n") if p.strip()]
 
@@ -303,13 +356,13 @@ def add_stock_handler(message):
       bot.reply_to(message, "⚠️ No valid products found!")
       return
 
-    stock_list = get_stock(panel_name)
+    stock_list = get_stock(target_path)
     stock_list.extend(new_products)
 
-    update_stock(panel_name, stock_list)
+    update_stock(target_path, stock_list)
     bot.reply_to(
         message,
-        f"✅ Successfully added {len(new_products)} items to stock!\n📦 Panel: {panel_name}",
+        f"✅ Successfully added {len(new_products)} items to stock!\n📦 Target: {target_path}",
         parse_mode="HTML",
     )
   except Exception as e:
@@ -335,93 +388,195 @@ def show_all_countries_menu(call):
   )
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("pnl_"))
-def country_folder_selected(call):
-  panel_key = call.data.split("_", 1)[1]
-  panel_name = panel_key.replace("_", " ")
+@bot.callback_query_handler(func=lambda call: call.data.startswith("pnl_") or call.data.startswith("country_"))
+def dynamic_navigation_handler(call):
   user_id = call.from_user.id
   balance, _ = get_user_balance_by_id(user_id)
   
-  item_price_usdt = PANEL_PRICES.get(panel_name, 1.0)
-  stock_items = get_stock(panel_name)
-  stock_count = len(stock_items)
-
-  if panel_name == "Panel 1":
-    panel_details = (
-        "🇨🇴 Colombia : 0.5$ • 🇮🇳 India : 0.55$ • 🇧🇩 Bangladesh : 0.55$ • "
-        "🇺🇸 United States : 0.55$ • 🇮🇩 Indonesia : 0.6$ • 🇨🇱 Chile : 0.65$ • "
-        "🇰🇪 Kenya : 0.65$ • 🇲🇲 Myanmar : 0.65$ • 🇦🇴 Angola : 0.68$ • "
-        "🇦🇫 Afghanistan : 0.7$ • 🇿🇼 Zimbabwe : 0.7$ • 🇸🇩 Sudan : 0.7$ • "
-        "🇨🇲 Cameroon : 0.7$ • 🇲🇬 Madagascar : 0.7$ • 🇹🇿 Tanzania : 0.6$ • "
-        "🇩🇿 Algeria : 0.75$ • 🇯🇲 Jamaica : 0.75$ • 🇱🇰 Sri Lanka : 0.8$ • "
-        "🇸🇿 Eswatini : 0.8$ • 🇧🇫 Burkina Faso : 0.8$"
-    )
-  elif panel_name == "Panel 2":
-    panel_details = (
-        "Myanmar : 0.35$ • Colombia : 0.55$ • Uganda : 0.55$ • Togo : 0.55$ • "
-        "Sudan : 0.58$ • Zimbabwe : 0.6$ • Nigeria : 0.6$ • Congo, The Democratic : 0.6$ • "
-        "Sierra Leone : 0.6$ • Madagascar : 0.6$ • Angola : 0.65$ • Niger : 0.65$ • "
-        "Pakistan : 0.65$ • Zambia : 0.65$ • India : 0.65$ • Chile : 0.65$ • "
-        "Afghanistan : 0.65$ • Ghana : 0.65$ • Cuba : 0.7$ • Thailand : 0.7$"
-    )
-  elif panel_name == "Panel 3":
-    panel_details = "🇳🇬 Nigeria - $0.5"
-  else:
-    panel_details = ""
-
-  if stock_count <= 0:
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🔙 Back to Panels", callback_data="back_to_telegram"))
+  if call.data.startswith("pnl_"):
+    panel_key = call.data.split("_", 1)[1]
+    panel_name = panel_key.replace("_", " ")
     
-    out_text = f"❌ <b>Stock Out!</b>\n\nSorry, products for this panel are currently out of stock. Please try another panel."
-    if panel_details:
-      out_text = f"📁 Selected Panel: <b>{panel_name}</b>\nℹ️ <i>{panel_details}</i>\n\n{out_text}"
+    if panel_name == "Panel 1":
+      markup = InlineKeyboardMarkup()
+      row = []
+      for country in PANEL_1_COUNTRIES.keys():
+        path_key = f"Panel 1/{country}"
+        stock_count = len(get_stock(path_key))
+        btn_text = f"🌍 {country} [{stock_count} pcs]"
+        row.append(InlineKeyboardButton(btn_text, callback_data=f"country_Panel_1_{country.replace(' ', '_')}"))
+        if len(row) == 2:
+          markup.add(*row)
+          row = []
+      if row:
+        markup.add(*row)
+      markup.add(InlineKeyboardButton("🔙 Back to Panels", callback_data="back_to_telegram"))
+      
+      bot.edit_message_text(
+          "📁 <b>Panel 1</b>\n\nSelect a country:",
+          call.message.chat.id,
+          call.message.message_id,
+          reply_markup=markup,
+          parse_mode="HTML"
+      )
+      return
+      
+    elif panel_name == "Panel 2":
+      markup = InlineKeyboardMarkup()
+      row = []
+      for country in PANEL_2_COUNTRIES.keys():
+        path_key = f"Panel 2/{country}"
+        stock_count = len(get_stock(path_key))
+        btn_text = f"🌍 {country} [{stock_count} pcs]"
+        row.append(InlineKeyboardButton(btn_text, callback_data=f"country_Panel_2_{country.replace(' ', '_')}"))
+        if len(row) == 2:
+          markup.add(*row)
+          row = []
+      if row:
+        markup.add(*row)
+      markup.add(InlineKeyboardButton("🔙 Back to Panels", callback_data="back_to_telegram"))
+      
+      bot.edit_message_text(
+          "📁 <b>Panel 2</b>\n\nSelect a country:",
+          call.message.chat.id,
+          call.message.message_id,
+          reply_markup=markup,
+          parse_mode="HTML"
+      )
+      return
 
-    bot.edit_message_text(
-        out_text,
-        call.message.chat.id,
-        call.message.message_id,
-        reply_markup=markup,
-        parse_mode="HTML"
-    )
-    return
+    elif panel_name == "Panel 3":
+      markup = InlineKeyboardMarkup()
+      row = []
+      for country in PANEL_3_COUNTRIES.keys():
+        path_key = f"Panel 3/{country}"
+        stock_count = len(get_stock(path_key))
+        btn_text = f"🌍 {country} [{stock_count} pcs]"
+        row.append(InlineKeyboardButton(btn_text, callback_data=f"country_Panel_3_{country.replace(' ', '_')}"))
+        if len(row) == 2:
+          markup.add(*row)
+          row = []
+      if row:
+        markup.add(*row)
+      markup.add(InlineKeyboardButton("🔙 Back to Panels", callback_data="back_to_telegram"))
+      
+      bot.edit_message_text(
+          "📁 <b>Panel 3</b>\n\nSelect a country:",
+          call.message.chat.id,
+          call.message.message_id,
+          reply_markup=markup,
+          parse_mode="HTML"
+      )
+      return
 
-  if balance < item_price_usdt:
-    markup = InlineKeyboardMarkup()
-    markup.add(
-        InlineKeyboardButton("🆔 Binance UID", callback_data="dep_binance_uid"),
-        InlineKeyboardButton("🔹 Tron-TRC20", callback_data="dep_tron")
-    )
-    markup.add(InlineKeyboardButton("🔙 Back to Panels", callback_data="back_to_telegram"))
+    else:
+      item_price_usdt = PANEL_PRICES.get(panel_name, 1.5)
+      stock_items = get_stock(panel_name)
+      stock_count = len(stock_items)
+      
+      if stock_count <= 0:
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("🔙 Back to Panels", callback_data="back_to_telegram"))
+        bot.edit_message_text(
+            f"❌ <b>Stock Out!</b>\n\nSorry, products for this panel are currently out of stock.",
+            call.message.chat.id,
+            call.message.message_id,
+            reply_markup=markup,
+            parse_mode="HTML"
+        )
+        return
+
+      if balance < item_price_usdt:
+        markup = InlineKeyboardMarkup()
+        markup.add(
+            InlineKeyboardButton("🆔 Binance UID", callback_data="dep_binance_uid"),
+            InlineKeyboardButton("🔹 Tron-TRC20", callback_data="dep_tron")
+        )
+        markup.add(InlineKeyboardButton("🔙 Back to Panels", callback_data="back_to_telegram"))
+        bot.edit_message_text(
+            f"❌ <b>Insufficient Balance!</b>\n\nPrice per piece is {item_price_usdt} USDT.",
+            call.message.chat.id,
+            call.message.message_id,
+            reply_markup=markup,
+            parse_mode="HTML"
+        )
+      else:
+        user_states[user_id] = {"action": "buy_item_quantity", "panel": panel_name, "price": item_price_usdt}
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("🔙 Back to Panels", callback_data="back_to_telegram"))
+        bot.edit_message_text(
+            f"📁 Selected Panel: <b>{panel_name}</b>\n📦 Available Stock: {stock_count} pcs\n💲 Price per piece: {item_price_usdt} USDT\n💰 Your Balance: {balance:.2f} USDT\n\nHow many pieces do you want to buy? Enter a number:",
+            call.message.chat.id,
+            call.message.message_id,
+            reply_markup=markup,
+            parse_mode="HTML"
+        )
+      return
+
+  elif call.data.startswith("country_"):
+    parts = call.data.split("_", 3)
+    panel_num = parts[1] # "1", "2", or "3"
+    panel_name = f"Panel {panel_num}"
+    rest = parts[3] # Country name
     
-    bal_text = f"❌ <b>Insufficient Balance!</b>\n\nYou do not have enough USDT in your account. Price per piece is {item_price_usdt} USDT. Please deposit from the options below:"
-    if panel_details:
-      bal_text = f"📁 Selected Panel: <b>{panel_name}</b>\nℹ️ <i>{panel_details}</i>\n\n{bal_text}"
+    country_name = None
+    if panel_num == "1":
+      target_dict = PANEL_1_COUNTRIES
+    elif panel_num == "2":
+      target_dict = PANEL_2_COUNTRIES
+    else:
+      target_dict = PANEL_3_COUNTRIES
 
-    bot.edit_message_text(
-        bal_text,
-        call.message.chat.id,
-        call.message.message_id,
-        reply_markup=markup,
-        parse_mode="HTML"
-    )
-  else:
-    user_states[user_id] = {"action": "buy_item_quantity", "panel": panel_name, "price": item_price_usdt}
+    for c in target_dict.keys():
+      if rest == c.replace(" ", "_"):
+        country_name = c
+        break
+        
+    if not country_name:
+      return
+
+    path_key = f"{panel_name}/{country_name}"
+    item_price_usdt = target_dict.get(country_name, 0.5)
+    stock_items = get_stock(path_key)
+    stock_count = len(stock_items)
+
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🔙 Back to Panels", callback_data="back_to_telegram"))
-    
-    selection_text = f"📁 Selected Panel: <b>{panel_name}</b>\n"
-    if panel_details:
-      selection_text += f"ℹ️ <i>{panel_details}</i>\n\n"
-    selection_text += f"📦 Available Stock: {stock_count} pcs\n💲 Price per piece: {item_price_usdt} USDT\n💰 Your Balance: {balance:.2f} USDT\n\nHow many pieces do you want to buy? Enter a number:"
+    markup.add(InlineKeyboardButton(f"🔙 Back to {panel_name}", callback_data=f"pnl_{panel_name.replace(' ', '_')}"))
 
-    bot.edit_message_text(
-        selection_text,
-        call.message.chat.id,
-        call.message.message_id,
-        reply_markup=markup,
-        parse_mode="HTML"
-    )
+    if stock_count <= 0:
+      bot.edit_message_text(
+          f"🌍 Country: <b>{country_name}</b> ({panel_name})\n💲 Price: {item_price_usdt} USDT\n\n❌ <b>Stock Out!</b>\n\nProducts for this country are currently out of stock.",
+          call.message.chat.id,
+          call.message.message_id,
+          reply_markup=markup,
+          parse_mode="HTML"
+      )
+      return
+
+    if balance < item_price_usdt:
+      pay_markup = InlineKeyboardMarkup()
+      pay_markup.add(
+          InlineKeyboardButton("🆔 Binance UID", callback_data="dep_binance_uid"),
+          InlineKeyboardButton("🔹 Tron-TRC20", callback_data="dep_tron")
+      )
+      pay_markup.add(InlineKeyboardButton(f"🔙 Back to {panel_name}", callback_data=f"pnl_{panel_name.replace(' ', '_')}"))
+      
+      bot.edit_message_text(
+          f"🌍 Country: <b>{country_name}</b> ({panel_name})\n💲 Price: {item_price_usdt} USDT\n\n❌ <b>Insufficient Balance!</b>\n\nYour balance is {balance:.2f} USDT. Please deposit below:",
+          call.message.chat.id,
+          call.message.message_id,
+          reply_markup=pay_markup,
+          parse_mode="HTML"
+      )
+    else:
+      user_states[user_id] = {"action": "buy_item_quantity", "panel": path_key, "price": item_price_usdt}
+      bot.edit_message_text(
+          f"🌍 Country: <b>{country_name}</b> ({panel_name})\n📦 Available Stock: {stock_count} pcs\n💲 Price per piece: {item_price_usdt} USDT\n💰 Your Balance: {balance:.2f} USDT\n\nHow many pieces do you want to buy? Enter a number:",
+          call.message.chat.id,
+          call.message.message_id,
+          reply_markup=markup,
+          parse_mode="HTML"
+      )
 
 
 @bot.message_handler( func=lambda msg: user_states.get(msg.from_user.id, {}).get("action") == "buy_item_quantity" )
