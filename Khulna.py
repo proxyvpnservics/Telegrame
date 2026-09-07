@@ -317,9 +317,20 @@ def send_welcome(message):
   bot.clear_step_handler_by_chat_id(user_id)
   trade_data.pop(user_id, None)
 
+  # চ্যানেল জয়েন করার ইনলাইন বাটন
+  channel_markup = InlineKeyboardMarkup()
+  channel_markup.add(InlineKeyboardButton("📢 Join Channel", url="https://t.me/all_country_sell"))
+
   bot.send_message(
       message.chat.id,
-      f"🌸 Welcome <b>{message.from_user.first_name}</b>!\n\nWelcome to our shop. Please select from the menu below:",
+      f"🌸 Welcome <b>{message.from_user.first_name}</b>!\n\nWelcome to our shop. Please join our official channel below:",
+      reply_markup=channel_markup,
+      parse_mode="HTML",
+  )
+
+  bot.send_message(
+      message.chat.id,
+      "Please select from the menu below:",
       reply_markup=get_main_menu(),
   )
 
