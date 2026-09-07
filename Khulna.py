@@ -1,8 +1,8 @@
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import os
 import sqlite3
 import threading
 import time
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from flask import Flask, jsonify, request
 import requests
 import telebot
@@ -26,17 +26,12 @@ DOLLAR_CONFIG = {
     "tron_address": "TPgp911fhwLoK2cKHMvV5oRzFX5hc9NCY8",
 }
 
-# Product Prices (in USDT)
-PRODUCT_PRICES = {
-    "+880": 1.0,
-    "+91": 1.2,
-    "+7": 2.1,
-    "+1": 1.5,
-    "+972": 1.1,
-    "+34": 1.0,
-    "+54": 3.0,
-    "+62": 1.5,
-    "+95": 1.2,
+# Panel Prices (in USDT)
+PANEL_PRICES = {
+    "Panel 1": 1.0,
+    "Panel 2": 1.2,
+    "Panel 3": 2.1,
+    "Panel 4": 1.5,
 }
 
 bot = telebot.TeleBot(API_TOKEN, parse_mode="HTML")
@@ -199,10 +194,10 @@ def add_buy_count(user_id):
     print(f"Firebase add_buy_count Error: {e}")
 
 
-def get_stock(country_code):
+def get_stock(panel_name):
   try:
-    normalized_code = country_code if country_code.startswith("+") else "+" + country_code
-    url = f"{FIREBASE_URL}stock/{normalized_code}.json"
+    safe_panel_key = panel_name.replace(" ", "_")
+    url = f"{FIREBASE_URL}stock/{safe_panel_key}.json"
     res = requests.get(url, timeout=10)
     data = res.json()
     if isinstance(data, list):
@@ -215,10 +210,10 @@ def get_stock(country_code):
     return []
 
 
-def update_stock(country_code, remaining_items):
+def update_stock(panel_name, remaining_items):
   try:
-    normalized_code = country_code if country_code.startswith("+") else "+" + country_code
-    url = f"{FIREBASE_URL}stock/{normalized_code}.json"
+    safe_panel_key = panel_name.replace(" ", "_")
+    url = f"{FIREBASE_URL}stock/{safe_panel_key}.json"
     requests.put(url, json=remaining_items, timeout=10)
   except Exception as e:
     print(f"Firebase update_stock Error: {e}")
@@ -227,7 +222,7 @@ def update_stock(country_code, remaining_items):
 def get_main_menu():
   markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
   markup.add(
-      KeyboardButton("📱 Telegram"),
+      KeyboardButton("📱 Panels"),
       KeyboardButton("👤 Profile"),
       KeyboardButton("💰 Deposit"),
       KeyboardButton("🔗 Refer"),
@@ -244,24 +239,14 @@ def cancel_markup():
 
 def get_telegram_main_menu():
   markup = InlineKeyboardMarkup()
-  countries = [
-      ("+880", "BD"),
-      ("+91", "IN"),
-      ("+7", "RU"),
-      ("+1", "US"),
-      ("+972", "IS"),
-      ("+34", "SP"),
-      ("+54", "IRG"),
-      ("+62", "IN"),
-      ("+95", "MY"),
-  ]
+  panels = ["Panel 1", "Panel 2", "Panel 3", "Panel 4"]
   
   row = []
-  for code, name in countries:
-    stock_items = get_stock(code)
+  for panel in panels:
+    stock_items = get_stock(panel)
     count = len(stock_items)
-    btn_text = f"★ {code} ({name}) [{count} pcs]"
-    row.append(InlineKeyboardButton(btn_text, callback_data=f"cnt_{code}"))
+    btn_text = f"★ {panel} [{count} pcs]"
+    row.append(InlineKeyboardButton(btn_text, callback_data=f"pnl_{panel.replace(' ', '_')}"))
     if len(row) == 2:
       markup.add(*row)
       row = []
@@ -297,7 +282,7 @@ def add_stock_handler(message):
     if len(text_parts) < 2:
       bot.reply_to(
           message,
-          "⚠️ Please write in the correct format:\n<code>/addstock +880 | product1\nproduct2</code>",
+          "⚠️ Please write in the correct format:\n<code>/addstock Panel 1 | product1\nproduct2</code>",
           parse_mode="HTML",
       )
       return
@@ -305,12 +290,12 @@ def add_stock_handler(message):
     content = text_parts[1]
     if "|" not in content:
       bot.reply_to(
-          message, "⚠️ Please put a pipe (|) between the country and the product."
+          message, "⚠️ Please put a pipe (|) between the panel name and the product."
       )
       return
 
-    country_code, products_raw = content.split("|", 1)
-    country_code = country_code.strip()
+    panel_name, products_raw = content.split("|", 1)
+    panel_name = panel_name.strip()
     
     new_products = [p.strip() for p in products_raw.split("\n") if p.strip()]
 
@@ -318,24 +303,24 @@ def add_stock_handler(message):
       bot.reply_to(message, "⚠️ No valid products found!")
       return
 
-    stock_list = get_stock(country_code)
+    stock_list = get_stock(panel_name)
     stock_list.extend(new_products)
 
-    update_stock(country_code, stock_list)
+    update_stock(panel_name, stock_list)
     bot.reply_to(
         message,
-        f"✅ Successfully added {len(new_products)} items to stock!\n🌍 Country: {country_code}",
+        f"✅ Successfully added {len(new_products)} items to stock!\n📦 Panel: {panel_name}",
         parse_mode="HTML",
     )
   except Exception as e:
     bot.reply_to(message, f"❌ Error occurred: {e}")
 
 
-@bot.message_handler(func=lambda message: message.text == "📱 Telegram")
+@bot.message_handler(func=lambda message: message.text == "📱 Panels")
 def telegram_button_handler(message):
   bot.send_message(
       message.chat.id, 
-      "Select your country from the Telegram section:", 
+      "Select your panel from the section below:", 
       reply_markup=get_telegram_main_menu()
   )
 
@@ -343,28 +328,57 @@ def telegram_button_handler(message):
 @bot.callback_query_handler(func=lambda call: call.data == "tg_all_countries" or call.data == "back_to_telegram")
 def show_all_countries_menu(call):
   bot.edit_message_text(
-      "🌍 Select your desired country from the list:",
+      "🌍 Select your desired panel from the list:",
       call.message.chat.id,
       call.message.message_id,
       reply_markup=get_telegram_main_menu(),
   )
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("cnt_"))
+@bot.callback_query_handler(func=lambda call: call.data.startswith("pnl_"))
 def country_folder_selected(call):
-  country_code = call.data.split("_")[1]
+  panel_key = call.data.split("_", 1)[1]
+  panel_name = panel_key.replace("_", " ")
   user_id = call.from_user.id
   balance, _ = get_user_balance_by_id(user_id)
   
-  item_price_usdt = PRODUCT_PRICES.get(country_code, 1.0)
-  stock_items = get_stock(country_code)
+  item_price_usdt = PANEL_PRICES.get(panel_name, 1.0)
+  stock_items = get_stock(panel_name)
   stock_count = len(stock_items)
+
+  if panel_name == "Panel 1":
+    panel_details = (
+        "🇨🇴 Colombia : 0.5$ • 🇮🇳 India : 0.55$ • 🇧🇩 Bangladesh : 0.55$ • "
+        "🇺🇸 United States : 0.55$ • 🇮🇩 Indonesia : 0.6$ • 🇨🇱 Chile : 0.65$ • "
+        "🇰🇪 Kenya : 0.65$ • 🇲🇲 Myanmar : 0.65$ • 🇦🇴 Angola : 0.68$ • "
+        "🇦🇫 Afghanistan : 0.7$ • 🇿🇼 Zimbabwe : 0.7$ • 🇸🇩 Sudan : 0.7$ • "
+        "🇨🇲 Cameroon : 0.7$ • 🇲🇬 Madagascar : 0.7$ • 🇹🇿 Tanzania : 0.6$ • "
+        "🇩🇿 Algeria : 0.75$ • 🇯🇲 Jamaica : 0.75$ • 🇱🇰 Sri Lanka : 0.8$ • "
+        "🇸🇿 Eswatini : 0.8$ • 🇧🇫 Burkina Faso : 0.8$"
+    )
+  elif panel_name == "Panel 2":
+    panel_details = (
+        "Myanmar : 0.35$ • Colombia : 0.55$ • Uganda : 0.55$ • Togo : 0.55$ • "
+        "Sudan : 0.58$ • Zimbabwe : 0.6$ • Nigeria : 0.6$ • Congo, The Democratic : 0.6$ • "
+        "Sierra Leone : 0.6$ • Madagascar : 0.6$ • Angola : 0.65$ • Niger : 0.65$ • "
+        "Pakistan : 0.65$ • Zambia : 0.65$ • India : 0.65$ • Chile : 0.65$ • "
+        "Afghanistan : 0.65$ • Ghana : 0.65$ • Cuba : 0.7$ • Thailand : 0.7$"
+    )
+  elif panel_name == "Panel 3":
+    panel_details = "🇳🇬 Nigeria - $0.5"
+  else:
+    panel_details = ""
 
   if stock_count <= 0:
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🔙 Back to Countries", callback_data="back_to_telegram"))
+    markup.add(InlineKeyboardButton("🔙 Back to Panels", callback_data="back_to_telegram"))
+    
+    out_text = f"❌ <b>Stock Out!</b>\n\nSorry, products for this panel are currently out of stock. Please try another panel."
+    if panel_details:
+      out_text = f"📁 Selected Panel: <b>{panel_name}</b>\nℹ️ <i>{panel_details}</i>\n\n{out_text}"
+
     bot.edit_message_text(
-        f"❌ <b>Stock Out!</b>\n\nSorry, products for this country are currently out of stock. Please try another country.",
+        out_text,
         call.message.chat.id,
         call.message.message_id,
         reply_markup=markup,
@@ -378,22 +392,31 @@ def country_folder_selected(call):
         InlineKeyboardButton("🆔 Binance UID", callback_data="dep_binance_uid"),
         InlineKeyboardButton("🔹 Tron-TRC20", callback_data="dep_tron")
     )
-    markup.add(InlineKeyboardButton("🔙 Back to Countries", callback_data="back_to_telegram"))
+    markup.add(InlineKeyboardButton("🔙 Back to Panels", callback_data="back_to_telegram"))
     
+    bal_text = f"❌ <b>Insufficient Balance!</b>\n\nYou do not have enough USDT in your account. Price per piece is {item_price_usdt} USDT. Please deposit from the options below:"
+    if panel_details:
+      bal_text = f"📁 Selected Panel: <b>{panel_name}</b>\nℹ️ <i>{panel_details}</i>\n\n{bal_text}"
+
     bot.edit_message_text(
-        f"❌ <b>Insufficient Balance!</b>\n\nYou do not have enough USDT in your account. Price per piece is {item_price_usdt} USDT. Please deposit from the options below:",
+        bal_text,
         call.message.chat.id,
         call.message.message_id,
         reply_markup=markup,
         parse_mode="HTML"
     )
   else:
-    user_states[user_id] = {"action": "buy_item_quantity", "country": country_code, "price": item_price_usdt}
+    user_states[user_id] = {"action": "buy_item_quantity", "panel": panel_name, "price": item_price_usdt}
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🔙 Back to Countries", callback_data="back_to_telegram"))
+    markup.add(InlineKeyboardButton("🔙 Back to Panels", callback_data="back_to_telegram"))
     
+    selection_text = f"📁 Selected Panel: <b>{panel_name}</b>\n"
+    if panel_details:
+      selection_text += f"ℹ️ <i>{panel_details}</i>\n\n"
+    selection_text += f"📦 Available Stock: {stock_count} pcs\n💲 Price per piece: {item_price_usdt} USDT\n💰 Your Balance: {balance:.2f} USDT\n\nHow many pieces do you want to buy? Enter a number:"
+
     bot.edit_message_text(
-        f"📁 Selected Country: <b>{country_code}</b>\n📦 Available Stock: {stock_count} pcs\n💲 Price per piece: {item_price_usdt} USDT\n💰 Your Balance: {balance:.2f} USDT\n\nHow many pieces do you want to buy? Enter a number:",
+        selection_text,
         call.message.chat.id,
         call.message.message_id,
         reply_markup=markup,
@@ -405,7 +428,7 @@ def country_folder_selected(call):
 def process_buy_quantity(message):
   user_id = message.from_user.id
   state_data = user_states.get(user_id, {})
-  country_code = state_data.get("country")
+  panel_name = state_data.get("panel")
   
   try:
     qty = int(message.text)
@@ -413,7 +436,7 @@ def process_buy_quantity(message):
       bot.send_message(message.chat.id, "❌ Please enter a valid number.")
       return
     
-    stock_items = get_stock(country_code)
+    stock_items = get_stock(panel_name)
     if qty > len(stock_items):
       bot.send_message(message.chat.id, f"❌ Not enough stock available! Currently only {len(stock_items)} pcs are in stock.")
       return
@@ -439,7 +462,7 @@ def process_buy_quantity(message):
 
     purchased_items = stock_items[:qty]
     remaining_items = stock_items[qty:]
-    update_stock(country_code, remaining_items)
+    update_stock(panel_name, remaining_items)
 
     new_balance = balance - total_cost
     url = f"{FIREBASE_URL}users/{user_id}/balance.json"
@@ -451,7 +474,7 @@ def process_buy_quantity(message):
     products_text = "\n".join([f"<code>{item}</code>" for item in purchased_items])
     bot.send_message(
         message.chat.id,
-        f"🛍️ <b>Your Purchased Products ({country_code}):</b>\n\n{products_text}",
+        f"🛍️ <b>Your Purchased Products ({panel_name}):</b>\n\n{products_text}",
         parse_mode="HTML"
     )
 
