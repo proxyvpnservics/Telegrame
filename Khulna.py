@@ -99,7 +99,7 @@ TRANSLATIONS = {
         "joined_btn": "Joined ✅",
         "joined_success": "Thank you! You have joined the channel.",
         "not_joined": "You haven't joined the channel yet! Please join first.",
-        "menu_telegram": "📱 Telegram Sell",
+        "menu_telegram": "📱 Telegram Buy Now",
         "menu_profile": "👤 Profile",
         "menu_deposit": "💰 Deposit",
         "menu_refer": "🔗 Refer",
@@ -122,8 +122,8 @@ TRANSLATIONS = {
         "deposit_step2": "🧾 Now please send your <b>Order ID / Transaction ID (TrxID)</b>:",
         "deposit_pending": "⏳ Your deposit request has been sent to the admin. Please wait.",
         "refer_text": "🔗 <b>Referral Program</b>\n\nInvite your friends to our bot using your personal referral link below and grow your network!\n\n🔗 Your Referral Link:\n<code>{link}</code>",
-        "support_text": "☎️ <b>Customer Support & Assistance</b>\n\nNeed help with anything? Feel free to reach out to our support team anytime for assistance.\n\n💬 Support: <a href='https://t.me/GV_gmail_07'>@GV_gmail_07</a>\n⏰ Available: 24/7 Hours",
-        "contact_admin": "🟢 Contact Support: @GV_gmail_07",
+        "support_text": "☎️ <b>Customer Support & Assistance</b>\n\nNeed help with anything? Feel free to reach out to our support team anytime for assistance.\n\n💬 Official Support: <a href='https://t.me/GV_gmail_07'>@GV_gmail_07</a>\n⏰ Available: 24/7 Hours",
+        "contact_admin": "🟢 Contact Support",
         "back": "🔙 Back",
         "invalid_num": "❌ Please enter a valid number.",
         "not_enough_stock": "❌ Not enough stock available! Currently only {stock} pcs are in stock.",
@@ -138,7 +138,7 @@ TRANSLATIONS = {
         "joined_btn": "已加入 ✅",
         "joined_success": "谢谢！您已成功加入频道。",
         "not_joined": "您还没有加入频道！请先加入。",
-        "menu_telegram": "📱 电报服务",
+        "menu_telegram": "📱 电报购买",
         "menu_profile": "👤 个人资料",
         "menu_deposit": "💰 充值",
         "menu_refer": "🔗 推荐",
@@ -161,8 +161,8 @@ TRANSLATIONS = {
         "deposit_step2": "🧾 现在请发送您的 <b>订单号 / 交易哈希 (TrxID)</b>：",
         "deposit_pending": "⏳ 您的充值请求已发送给管理员，请耐心等待。",
         "refer_text": "🔗 <b>推荐计划</b>\n\n使用下方的个人推荐链接邀请您的好友加入我们的机器人，拓展您的网络！\n\n🔗 您的推荐链接：\n<code>{link}</code>",
-        "support_text": "☎️ <b>客户支持与协助</b>\n\n需要任何帮助吗？随时联系我们的客服团队获取支持。\n\n💬 客服: <a href='https://t.me/GV_gmail_07'>@GV_gmail_07</a>\n⏰ 服务时间：24/7 全天候",
-        "contact_admin": "🟢 联系客服: @GV_gmail_07",
+        "support_text": "☎️ <b>客户支持与协助</b>\n\n需要任何帮助吗？随时联系我们的客服团队获取支持。\n\n💬 官方客服：<a href='https://t.me/GV_gmail_07'>@GV_gmail_07</a>\n⏰ 服务时间：24/7 全天候",
+        "contact_admin": "🟢 联系客服",
         "back": "🔙 返回",
         "invalid_num": "❌ 请输入有效的数字。",
         "not_enough_stock": "❌ 库存不足！当前仅剩 {stock} 件库存。",
@@ -548,7 +548,7 @@ def add_stock_handler(message):
     bot.reply_to(message, f"❌ Error occurred: {e}")
 
 
-@bot.message_handler(func=lambda message: message.text in ["📱 Telegram Sell", "📱 电报服务"])
+@bot.message_handler(func=lambda message: message.text in ["📱 Telegram Buy Now", "📱 电报购买"])
 def telegram_button_handler(message):
   user_id = message.from_user.id
   _, _, lang = get_user_data_by_id(user_id)
@@ -1164,7 +1164,7 @@ def admin_deposit_action(call):
         f"❌ Deposit cancelled.\n🆔 User ID: <code>{target_id}</code>\n🧾 Order ID: <code>{order_id}</code>",
         call.message.chat.id,
         call.message.message_id,
-        parse_mode="HTML"
+        parse_no="HTML"
     )
     try:
       bot.send_message(target_id, target_t["dep_cancel_user"])
