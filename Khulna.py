@@ -90,7 +90,7 @@ PANEL_3_COUNTRIES = {
     "Nigeria": 0.5,
 }
 
-# Translations Dictionary
+# Full Bilingual Translations Dictionary
 TRANSLATIONS = {
     "en": {
         "welcome": "🌸 Welcome <b>{name}</b>!\n\nPlease select from the menu below:",
@@ -105,17 +105,31 @@ TRANSLATIONS = {
         "menu_refer": "🔗 Refer",
         "menu_support": "☎️ Support",
         "menu_language": "🌐 Language",
-        "select_lang": "🌐 Please select your preferred language:",
+        "select_lang": "🌐 Please select your language / 请选择您的语言:",
         "lang_changed": "✅ Language changed to English successfully!",
-        "back": "🔙 Back",
+        "tg_main_prompt": "Select your panel from the section below:",
+        "tg_all_panels": "🌍 Select your desired panel from the list:",
+        "panel_select_country": "📁 <b>{panel}</b>\n\nSelect a country:",
         "back_to_panels": "🔙 Back to Panels",
-        "stock_out": "❌ <b>Stock Out!</b>\n\nSorry, products are currently out of stock.",
-        "insufficient_bal": "❌ <b>Insufficient Balance!</b>\n\nPrice: {price} USDT. Your balance: {balance:.2f} USDT.",
-        "ask_qty": "📁 Selected Panel: <b>{panel}</b>\n📦 Available Stock: {stock} pcs\n💲 Price per piece: {price} USDT\n💰 Your Balance: {balance:.2f} USDT\n\nHow many pieces do you want to buy? Enter a number:",
+        "stock_out": "❌ <b>Stock Out!</b>\n\nSorry, products for this panel/country are currently out of stock.",
+        "insufficient_bal": "❌ <b>Insufficient Balance!</b>\n\nPrice: {price} USDT, but your balance is {balance:.2f} USDT. Please deposit below:",
+        "ask_qty": "📁 Selected Panel/Country: <b>{panel}</b>\n📦 Available Stock: {stock} pcs\n💲 Price per piece: {price} USDT\n💰 Your Balance: {balance:.2f} USDT\n\nHow many pieces do you want to buy? Enter a number:",
         "purchase_success": "✅ <b>Purchase Successful!</b>\n\nSuccessfully bought {qty} pcs!\n💵 Deducted: {cost} USDT\n💎 New Balance: {new_bal:.2f} USDT",
+        "purchased_products": "🛍️ <b>Your Purchased Products ({panel}):</b>\n\n{products}",
         "profile_text": "👤 <b>Your Profile Information:</b>\n\n🆔 User ID: <code>{user_id}</code>\n📛 Name: {name}\n💰 Balance: {balance:.2f} USDT\n🛍️ Total Purchases: {total_buy}",
         "deposit_main": "💎 <b>Deposit System</b>\n\nSelect the payment method you want to deposit with from the buttons below:",
+        "deposit_step1": "💎 <b>{method} Deposit</b>\n\nSend payment to:\nAddress / ID: <code>{address}</code>\n\nStep 1: Enter the amount of USDT you sent (numbers only, e.g., 5 or 10):",
+        "deposit_step2": "🧾 Now please send your <b>Order ID / Transaction ID (TrxID)</b>:",
+        "deposit_pending": "⏳ Your deposit request has been sent to the admin. Please wait.",
+        "refer_text": "🔗 Your referral link:\n<code>{link}</code>\n\nInvite friends and win bonuses!",
         "support_text": "☎️ <b>Customer Support & Official Contact</b>\n\nFor any issues, purchasing products, or payment assistance, please contact our support account directly.\n\n💬 Admin Support: <a href='https://t.me/GV_gmail_07'>@GV_gmail_07</a>\n⏰ Service Time: 24/7 Hours",
+        "contact_admin": "🟢 Contact Admin",
+        "back": "🔙 Back",
+        "invalid_num": "❌ Please enter a valid number.",
+        "not_enough_stock": "❌ Not enough stock available! Currently only {stock} pcs are in stock.",
+        "enter_valid_amount": "❌ Please enter a valid amount.",
+        "dep_success_user": "🎉 Your deposit of {amount:.2f} USDT is successful!\n💰 Current Balance: {balance:.2f} USDT",
+        "dep_cancel_user": "❌ Your deposit request has been cancelled."
     },
     "zh": {
         "welcome": "🌸 欢迎 <b>{name}</b>！\n\n请从下方菜单中选择：",
@@ -130,17 +144,31 @@ TRANSLATIONS = {
         "menu_refer": "🔗 推荐",
         "menu_support": "☎️ 客服支持",
         "menu_language": "🌐 语言",
-        "select_log": "🌐 请选择您的首选语言：",
+        "select_lang": "🌐 请选择您的语言 / Please select your language:",
         "lang_changed": "✅ 语言已成功更改为中文！",
-        "back": "🔙 返回",
+        "tg_main_prompt": "请从下方选择您的面板：",
+        "tg_all_panels": "🌍 从列表中选择您想要的面板：",
+        "panel_select_country": "📁 <b>{panel}</b>\n\n选择一个国家/地区：",
         "back_to_panels": "🔙 返回面板",
-        "stock_out": "❌ <b>缺货！</b>\n\n抱歉，当前产品暂无库存。",
-        "insufficient_bal": "❌ <b>余额不足！</b>\n\n价格：{price} USDT。您的余额：{balance:.2f} USDT。",
-        "ask_qty": "📁 已选面板：<b>{panel}</b>\n📦 可用库存：{stock} 件\n💲 单价：{price} USDT\n💰 您的余额：{balance:.2f} USDT\n\n您想购买多少件？请输入数字：",
+        "stock_out": "❌ <b>缺货！</b>\n\n抱歉，此面板/国家的商品目前暂无库存。",
+        "insufficient_bal": "❌ <b>余额不足！</b>\n\n价格：{price} USDT，但您的余额为 {balance:.2f} USDT。请在下方充值：",
+        "ask_qty": "📁 已选面板/国家：<b>{panel}</b>\n📦 可用库存：{stock} 件\n💲 单价：{price} USDT\n💰 您的余额：{balance:.2f} USDT\n\n您想购买多少件？请输入数字：",
         "purchase_success": "✅ <b>购买成功！</b>\n\n成功购买 {qty} 件！\n💵 扣除：{cost} USDT\n💎 新余额：{new_bal:.2f} USDT",
+        "purchased_products": "🛍️ <b>您购买的商品 ({panel}):</b>\n\n{products}",
         "profile_text": "👤 <b>您的个人资料：</b>\n\n🆔 用户 ID: <code>{user_id}</code>\n📛 姓名：{name}\n💰 余额：{balance:.2f} USDT\n🛍️ 总购买量：{total_buy}",
         "deposit_main": "💎 <b>充值系统</b>\n\n请从下方按钮中选择您要充值的支付方式：",
+        "deposit_step1": "💎 <b>{method} 充值</b>\n\n请将款项发送至:\n地址 / ID: <code>{address}</code>\n\n第一步：输入您发送的 USDT 金额（仅限数字，例如 5 或 10）：",
+        "deposit_step2": "🧾 现在请发送您的 <b>订单号 / 交易哈希 (TrxID)</b>：",
+        "deposit_pending": "⏳ 您的充值请求已发送给管理员，请耐心等待。",
+        "refer_text": "🔗 您的推荐链接：\n<code>{link}</code>\n\n邀请好友赢取奖励！",
         "support_text": "☎️ <b>客户支持与官方联系方式</b>\n\n如有任何问题、购买产品或支付协助，请直接联系我们的客服账号。\n\n💬 管理员支持：<a href='https://t.me/GV_gmail_07'>@GV_gmail_07</a>\n⏰ 服务时间：24/7 全天候",
+        "contact_admin": "🟢 联系管理员",
+        "back": "🔙 返回",
+        "invalid_num": "❌ 请输入有效的数字。",
+        "not_enough_stock": "❌ 库存不足！当前仅剩 {stock} 件库存。",
+        "enter_valid_amount": "❌ 请输入有效的金额。",
+        "dep_success_user": "🎉 您充值的 {amount:.2f} USDT 已成功到账！\n💰 当前余额：{balance:.2f} USDT",
+        "dep_cancel_user": "❌ 您的充值请求已被取消。"
     }
 }
 
@@ -439,10 +467,12 @@ def callback_check_join(call):
 @bot.message_handler(func=lambda message: message.text in ["🌐 Language", "🌐 语言"])
 def language_menu_handler(message):
   user_id = message.from_user.id
+  _, _, lang = get_user_data_by_id(user_id)
   if not check_subscription(user_id):
     bot.send_message(message.chat.id, "⚠️ Please join the channel first!")
     return
 
+  t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
   markup = InlineKeyboardMarkup()
   markup.add(
       InlineKeyboardButton("🇬🇧 English", callback_data="lang_en"),
@@ -450,7 +480,7 @@ def language_menu_handler(message):
   )
   bot.send_message(
       message.chat.id,
-      "🌐 Please select your language / 请选择您的语言:",
+      t["select_lang"],
       reply_markup=markup
   )
 
@@ -522,13 +552,14 @@ def add_stock_handler(message):
 def telegram_button_handler(message):
   user_id = message.from_user.id
   _, _, lang = get_user_data_by_id(user_id)
+  t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
   if not check_subscription(user_id):
     bot.send_message(message.chat.id, "⚠️ Please join the channel first!")
     return
 
   bot.send_message(
       message.chat.id, 
-      "Select your panel from the section below:", 
+      t["tg_main_prompt"], 
       reply_markup=get_telegram_main_menu(lang)
   )
 
@@ -537,8 +568,9 @@ def telegram_button_handler(message):
 def show_all_countries_menu(call):
   user_id = call.from_user.id
   _, _, lang = get_user_data_by_id(user_id)
+  t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
   bot.edit_message_text(
-      "🌍 Select your desired panel from the list:",
+      t["tg_all_panels"],
       call.message.chat.id,
       call.message.message_id,
       reply_markup=get_telegram_main_menu(lang),
@@ -576,7 +608,7 @@ def dynamic_navigation_handler(call):
       markup.add(InlineKeyboardButton(t["back_to_panels"], callback_data="back_to_telegram"))
       
       bot.edit_message_text(
-          "📁 <b>Panel 1</b>\n\nSelect a country:",
+          t["panel_select_country"].format(panel="Panel 1"),
           call.message.chat.id,
           call.message.message_id,
           reply_markup=markup,
@@ -601,7 +633,7 @@ def dynamic_navigation_handler(call):
       markup.add(InlineKeyboardButton(t["back_to_panels"], callback_data="back_to_telegram"))
       
       bot.edit_message_text(
-          "📁 <b>Panel 2</b>\n\nSelect a country:",
+          t["panel_select_country"].format(panel="Panel 2"),
           call.message.chat.id,
           call.message.message_id,
           reply_markup=markup,
@@ -626,7 +658,7 @@ def dynamic_navigation_handler(call):
       markup.add(InlineKeyboardButton(t["back_to_panels"], callback_data="back_to_telegram"))
       
       bot.edit_message_text(
-          "📁 <b>Panel 3</b>\n\nSelect a country:",
+          t["panel_select_country"].format(panel="Panel 3"),
           call.message.chat.id,
           call.message.message_id,
           reply_markup=markup,
@@ -706,7 +738,7 @@ def dynamic_navigation_handler(call):
     stock_count = len(stock_items)
 
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(f"🔙 Back to {panel_name}", callback_data=f"pnl_{panel_name.replace(' ', '_')}"))
+    markup.add(InlineKeyboardButton(f"{t['back']} {panel_name}", callback_data=f"pnl_{panel_name.replace(' ', '_')}"))
 
     if stock_count <= 0:
       bot.edit_message_text(
@@ -724,7 +756,7 @@ def dynamic_navigation_handler(call):
           InlineKeyboardButton("🆔 Binance UID", callback_data="dep_binance_uid"),
           InlineKeyboardButton("🔹 Tron-TRC20", callback_data="dep_tron")
       )
-      pay_markup.add(InlineKeyboardButton(f"🔙 Back to {panel_name}", callback_data=f"pnl_{panel_name.replace(' ', '_')}"))
+      pay_markup.add(InlineKeyboardButton(f"{t['back']} {panel_name}", callback_data=f"pnl_{panel_name.replace(' ', '_')}"))
       
       bot.edit_message_text(
           f"🌍 Country: <b>{country_name}</b> ({panel_name})\n💲 Price: {item_price_usdt} USDT\n\n" + t["insufficient_bal"].format(price=item_price_usdt, balance=balance),
@@ -736,7 +768,7 @@ def dynamic_navigation_handler(call):
     else:
       user_states[user_id] = {"action": "buy_item_quantity", "panel": path_key, "price": item_price_usdt}
       bot.edit_message_text(
-          f"🌍 Country: <b>{country_name}</b> ({panel_name})\n📦 Available Stock: {stock_count} pcs\n💲 Price per piece: {item_price_usdt} USDT\n💰 Your Balance: {balance:.2f} USDT\n\nHow many pieces do you want to buy? Enter a number:",
+          t["ask_qty"].format(panel=f"{panel_name} / {country_name}", stock=stock_count, price=item_price_usdt, balance=balance),
           call.message.chat.id,
           call.message.message_id,
           reply_markup=markup,
@@ -760,12 +792,12 @@ def process_buy_quantity(message):
   try:
     qty = int(message.text)
     if qty <= 0:
-      bot.send_message(message.chat.id, "❌ Please enter a valid number.")
+      bot.send_message(message.chat.id, t["invalid_num"])
       return
     
     stock_items = get_stock(panel_name)
     if qty > len(stock_items):
-      bot.send_message(message.chat.id, f"❌ Not enough stock available! Currently only {len(stock_items)} pcs are in stock.")
+      bot.send_message(message.chat.id, t["not_enough_stock"].format(stock=len(stock_items)))
       return
 
     price_per_item = state_data.get("price", 1.0)
@@ -801,7 +833,7 @@ def process_buy_quantity(message):
     products_text = "\n".join([f"<code>{item}</code>" for item in purchased_items])
     bot.send_message(
         message.chat.id,
-        f"🛍️ <b>Your Purchased Products ({panel_name}):</b>\n\n{products_text}",
+        t["purchased_products"].format(panel=panel_name, products=products_text),
         parse_mode="HTML"
     )
 
@@ -812,7 +844,7 @@ def process_buy_quantity(message):
         parse_mode="HTML"
     )
   except ValueError:
-    bot.send_message(message.chat.id, "❌ Please enter a valid number.")
+    bot.send_message(message.chat.id, t["invalid_num"])
 
 
 @bot.message_handler(commands=["broadcast"])
@@ -1009,6 +1041,8 @@ def back_to_deposit_menu(call):
 @bot.callback_query_handler(func=lambda call: call.data in ["dep_binance_uid", "dep_tron"])
 def deposit_method_selected(call):
   user_id = call.from_user.id
+  _, _, lang = get_user_data_by_id(user_id)
+  t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
   if not check_subscription(user_id):
     bot.answer_callback_query(call.id, "Please join the channel first!", show_alert=True)
     return
@@ -1021,15 +1055,10 @@ def deposit_method_selected(call):
   
   user_states[user_id] = {"action": "deposit_amount", "method": method_name}
   
-  text = (
-      f"💎 <b>{method_name} Deposit</b>\n\n"
-      f"Send payment to:\nAddress / ID: <code>{address}</code>\n\n"
-      "Step 1: Enter the amount of USDT you sent (numbers only, e.g., 5 or 10):"
-  )
   markup = InlineKeyboardMarkup()
-  markup.add(InlineKeyboardButton("🔙 Back", callback_data="back_to_deposit"))
+  markup.add(InlineKeyboardButton(t["back"], callback_data="back_to_deposit"))
   bot.edit_message_text(
-      text,
+      t["deposit_step1"].format(method=method_name, address=address),
       call.message.chat.id,
       call.message.message_id,
       reply_markup=markup,
@@ -1039,28 +1068,34 @@ def deposit_method_selected(call):
 
 @bot.message_handler( func=lambda msg: user_states.get(msg.from_user.id, {}).get("action") == "deposit_amount" )
 def get_deposit_amount(message):
+  user_id = message.from_user.id
+  _, _, lang = get_user_data_by_id(user_id)
+  t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
+  
   try:
     amount = float(message.text)
     if amount <= 0:
-      bot.send_message(message.chat.id, "❌ Please enter a valid amount.")
+      bot.send_message(message.chat.id, t["enter_valid_amount"])
       return
 
-    user_id = message.from_user.id
     user_states[user_id]["amount"] = amount
     user_states[user_id]["action"] = "deposit_order_id"
 
     bot.send_message(
         message.chat.id,
-        "🧾 Now please send your <b>Order ID / Transaction ID (TrxID)</b>:",
+        t["deposit_step2"],
         parse_mode="HTML"
     )
   except ValueError:
-    bot.send_message(message.chat.id, "❌ Please enter a valid number.")
+    bot.send_message(message.chat.id, t["invalid_num"])
 
 
 @bot.message_handler( func=lambda msg: user_states.get(msg.from_user.id, {}).get("action") == "deposit_order_id" )
 def get_deposit_order_id(message):
   user_id = message.from_user.id
+  _, _, lang = get_user_data_by_id(user_id)
+  t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
+  
   state_data = user_states.pop(user_id, {})
   method = state_data.get("method", "Crypto")
   amount = state_data.get("amount", 0.0)
@@ -1068,8 +1103,8 @@ def get_deposit_order_id(message):
 
   bot.send_message(
       message.chat.id,
-      "⏳ Your deposit request has been sent to the admin. Please wait.",
-      reply_markup=get_main_menu()
+      t["deposit_pending"],
+      reply_markup=get_main_menu(lang)
   )
 
   admin_markup = InlineKeyboardMarkup()
@@ -1101,6 +1136,8 @@ def admin_deposit_action(call):
   parts = call.data.split("|")
   action = parts[0]
   target_id = int(parts[1])
+  _, _, target_lang = get_user_data_by_id(target_id)
+  target_t = TRANSLATIONS.get(target_lang, TRANSLATIONS["en"])
 
   if action == "depapprove":
     amount = float(parts[2])
@@ -1116,7 +1153,7 @@ def admin_deposit_action(call):
     try:
       bot.send_message(
           target_id,
-          f"🎉 Your deposit of {amount:.2f} USDT is successful!\n💰 Current Balance: {new_balance:.2f} USDT",
+          target_t["dep_success_user"].format(amount=amount, balance=new_balance),
       )
     except:
       pass
@@ -1130,7 +1167,7 @@ def admin_deposit_action(call):
         parse_mode="HTML"
     )
     try:
-      bot.send_message(target_id, "❌ Your deposit request has been cancelled.")
+      bot.send_message(target_id, target_t["dep_cancel_user"])
     except:
       pass
 
@@ -1139,14 +1176,15 @@ def admin_deposit_action(call):
 @bot.message_handler(func=lambda message: message.text in ["🔗 Refer", "🔗 推荐"])
 def refer_handler(message):
   user_id = message.from_user.id
+  _, _, lang = get_user_data_by_id(user_id)
   if not check_subscription(user_id):
     bot.send_message(message.chat.id, "⚠️ Please join the channel first!")
     return
 
+  t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
   bot_username = bot.get_me().username
   bot_link = f"https://t.me/{bot_username}?start={user_id}"
-  text = f"🔗 Your referral link:\n<code>{bot_link}</code>\n\nInvite friends and win bonuses!"
-  bot.send_message(message.chat.id, text, parse_mode="HTML")
+  bot.send_message(message.chat.id, t["refer_text"].format(link=bot_link), parse_mode="HTML")
 
 
 @bot.message_handler(commands=["support"])
@@ -1162,7 +1200,7 @@ def support_handler(message):
   markup = InlineKeyboardMarkup()
   markup.add(
       InlineKeyboardButton(
-          "🟢 Contact Admin", url="https://t.me/GV_gmail_07"
+          t["contact_admin"], url="https://t.me/GV_gmail_07"
       )
   )
   bot.send_message(message.chat.id, t["support_text"], reply_markup=markup, parse_mode="HTML")
