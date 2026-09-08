@@ -18,6 +18,9 @@ from telebot.types import (
 API_TOKEN = os.getenv("BOT_TOKEN", "8695667841:AAGIRtc8JcqqL3ASJZOy8S-3Jk0Pjk1A-68")
 ADMIN_ID = 6954924404
 
+# Force Subscribe Channel Username
+CHANNEL_USERNAME = "@all_country_sell"
+
 # Firebase Realtime Database URL
 FIREBASE_URL = "https://shopbotdb-default-rtdb.firebaseio.com/"
 
@@ -176,6 +179,17 @@ def set_bot_commands():
     print(f"Failed to set bot commands: {e}")
 
 
+# --- Force Subscription Check Function ---
+def check_subscription(user_id):
+  try:
+    member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
+    if member.status in ['creator', 'administrator', 'member']:
+      return True
+    return False
+  except Exception as e:
+    return False
+
+
 def get_user(message):
   user_id = message.from_user.id
   first_name = message.from_user.first_name or "Unknown"
@@ -317,22 +331,45 @@ def send_welcome(message):
   bot.clear_step_handler_by_chat_id(user_id)
   trade_data.pop(user_id, None)
 
-  # চ্যানেল জয়েন করার ইনলাইন বাটন
-  channel_markup = InlineKeyboardMarkup()
-  channel_markup.add(InlineKeyboardButton("📢 Join Channel", url="https://t.me/all_country_sell"))
+  # Check Force Subscription
+  if not check_subscription(user_id):
+    channel_markup = InlineKeyboardMarkup()
+    channel_markup.add(InlineKeyboardButton("📢 Join Channel", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}"))
+    channel_markup.add(InlineKeyboardButton("Joined ✅", callback_data="check_join"))
+
+    bot.send_message(
+        message.chat.id,
+        f"🌸 Welcome <b>{message.from_user.first_name}</b>!\n\n⚠️ আগে আমাদের চ্যানেলে জয়েন করুন, তারপরে বট ব্যবহার করতে পারবেন!",
+        reply_markup=channel_markup,
+        parse_mode="HTML",
+    )
+    return
 
   bot.send_message(
       message.chat.id,
-      f"🌸 Welcome <b>{message.from_user.first_name}</b>!\n\nWelcome to our shop. Please join our official channel below:",
-      reply_markup=channel_markup,
-      parse_mode="HTML",
-  )
-
-  bot.send_message(
-      message.chat.id,
-      "Please select from the menu below:",
+      f"🌸 Welcome <b>{message.from_user.first_name}</b>!\n\nPlease select from the menu below:",
       reply_markup=get_main_menu(),
+      parse_mode="HTML"
   )
+
+
+# 'Joined ✅' Callback Handler
+@bot.callback_query_handler(func=lambda call: call.data == "check_join")
+def callback_check_join(call):
+  user_id = call.from_user.id
+  if check_subscription(user_id):
+    bot.answer_callback_query(call.id, "ধন্যবাদ! আপনি চ্যানেলে জয়েন করেছেন।")
+    try:
+      bot.delete_message(call.message.chat.id, call.message.message_id)
+    except:
+      pass
+    bot.send_message(
+        call.message.chat.id,
+        "✅ আপনার একাউন্ট ভেরিফাই হয়েছে! নিচের মেনু থেকে অপশন বেছে নিন:",
+        reply_markup=get_main_menu(),
+    )
+  else:
+    bot.answer_callback_query(call.id, "❌ আপনি এখনো চ্যানেলে জয়েন করেননি! দয়া করে আগে চ্যানেলে জয়েন করুন।", show_alert=True)
 
 
 @bot.message_handler(commands=["addstock"])
@@ -382,6 +419,11 @@ def add_stock_handler(message):
 
 @bot.message_handler(func=lambda message: message.text == "📱 Telegram Sell")
 def telegram_button_handler(message):
+  user_id = message.from_user.id
+  if not check_subscription(user_id):
+    bot.send_message(message.chat.id, "⚠️ আগে চ্যানেলে জয়েন করতে হবে, তারপরে এই অপশন আসবে। /start লিখে চেক করুন।")
+    return
+
   bot.send_message(
       message.chat.id, 
       "Select your panel from the section below:", 
@@ -402,6 +444,10 @@ def show_all_countries_menu(call):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("pnl_") or call.data.startswith("cntry_"))
 def dynamic_navigation_handler(call):
   user_id = call.from_user.id
+  if not check_subscription(user_id):
+    bot.answer_callback_query(call.id, "আগে চ্যানেলে জয়েন করুন!", show_alert=True)
+    return
+
   balance, _ = get_user_balance_by_id(user_id)
   
   if call.data.startswith("pnl_"):
@@ -529,9 +575,9 @@ def dynamic_navigation_handler(call):
 
   elif call.data.startswith("cntry_"):
     parts = call.data.split("_", 2)
-    panel_num = parts[1] # "1", "2", or "3"
+    panel_num = parts[1]
     panel_name = f"Panel {panel_num}"
-    slug = parts[2] # Country name slug
+    slug = parts[2]
     
     country_name = None
     if panel_num == "1":
@@ -596,6 +642,10 @@ def dynamic_navigation_handler(call):
 @bot.message_handler( func=lambda msg: user_states.get(msg.from_user.id, {}).get("action") == "buy_item_quantity" )
 def process_buy_quantity(message):
   user_id = message.from_user.id
+  if not check_subscription(user_id):
+    bot.send_message(message.chat.id, "⚠️ আগে চ্যানেলে জয়েন করুন!")
+    return
+
   state_data = user_states.get(user_id, {})
   panel_name = state_data.get("panel")
   
@@ -792,15 +842,20 @@ def send_key(message):
 @bot.message_handler(commands=["profile"])
 @bot.message_handler(func=lambda message: message.text == "👤 Profile")
 def profile_handler(message):
-  balance, total_buy = get_user_balance_by_id(message.from_user.id)
+  user_id = message.from_user.id
+  if not check_subscription(user_id):
+    bot.send_message(message.chat.id, "⚠️ আগে চ্যানেলে জয়েন করুন!")
+    return
+
+  balance, total_buy = get_user_balance_by_id(user_id)
   user_info = (
       f"👤 <b>Your Profile Information:</b>\n\n"
-      f"🆔 User ID: <code>{message.from_user.id}</code>\n"
+      f"🆔 User ID: <code>{user_id}</code>\n"
       f"📛 Name: {message.from_user.first_name}\n"
       f"💰 Balance: {balance:.2f} USDT\n"
       f"🛍️ Total Purchases: {total_buy}"
   )
-  bot.send_message(message.chat.id, user_info)
+  bot.send_message(message.chat.id, user_info, parse_mode="HTML")
 
 
 def get_deposit_main_markup():
@@ -815,6 +870,11 @@ def get_deposit_main_markup():
 @bot.message_handler(commands=["deposit"])
 @bot.message_handler(func=lambda message: message.text == "💰 Deposit")
 def deposit_handler(message):
+  user_id = message.from_user.id
+  if not check_subscription(user_id):
+    bot.send_message(message.chat.id, "⚠️ আগে চ্যানেলে জয়েন করুন!")
+    return
+
   deposit_info = (
       "💎 <b>Deposit System</b>\n\n"
       "Select the payment method you want to deposit with from the buttons below:"
@@ -841,13 +901,18 @@ def back_to_deposit_menu(call):
 
 @bot.callback_query_handler(func=lambda call: call.data in ["dep_binance_uid", "dep_tron"])
 def deposit_method_selected(call):
+  user_id = call.from_user.id
+  if not check_subscription(user_id):
+    bot.answer_callback_query(call.id, "আগে চ্যানেলে জয়েন করুন!", show_alert=True)
+    return
+
   method_map = {
       "dep_binance_uid": ("Binance UID", DOLLAR_CONFIG["binance_uid"]),
       "dep_tron": ("Tron-TRC20", DOLLAR_CONFIG["tron_address"])
   }
   method_name, address = method_map[call.data]
   
-  user_states[call.from_user.id] = {"action": "deposit_amount", "method": method_name}
+  user_states[user_id] = {"action": "deposit_amount", "method": method_name}
   
   text = (
       f"💎 <b>{method_name} Deposit</b>\n\n"
@@ -963,17 +1028,28 @@ def admin_deposit_action(call):
       pass
 
 
+@bot.message_handler(commands=["refer"])
 @bot.message_handler(func=lambda message: message.text == "🔗 Refer")
 def refer_handler(message):
+  user_id = message.from_user.id
+  if not check_subscription(user_id):
+    bot.send_message(message.chat.id, "⚠️ আগে চ্যানেলে জয়েন করুন!")
+    return
+
   bot_username = bot.get_me().username
-  bot_link = f"https://t.me/{bot_username}?start={message.from_user.id}"
+  bot_link = f"https://t.me/{bot_username}?start={user_id}"
   text = f"🔗 Your referral link:\n<code>{bot_link}</code>\n\nInvite friends and win bonuses!"
-  bot.send_message(message.chat.id, text)
+  bot.send_message(message.chat.id, text, parse_mode="HTML")
 
 
 @bot.message_handler(commands=["support"])
 @bot.message_handler(func=lambda message: message.text == "☎️ Support")
 def support_handler(message):
+  user_id = message.from_user.id
+  if not check_subscription(user_id):
+    bot.send_message(message.chat.id, "⚠️ আগে চ্যানেলে জয়েন করুন!")
+    return
+
   text = (
       "☎️ <b>Customer Support & Official Contact</b>\n\n"
       "For any issues, purchasing products, or payment assistance, please contact our support account directly.\n\n"
@@ -986,7 +1062,7 @@ def support_handler(message):
           "🟢 Contact Admin", url="https://t.me/GV_gmail_07"
       )
   )
-  bot.send_message(message.chat.id, text, reply_markup=markup)
+  bot.send_message(message.chat.id, text, reply_markup=markup, parse_mode="HTML")
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "close")
