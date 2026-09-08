@@ -359,17 +359,14 @@ def callback_check_join(call):
   user_id = call.from_user.id
   if check_subscription(user_id):
     bot.answer_callback_query(call.id, "ধন্যবাদ! আপনি চ্যানেলে জয়েন করেছেন।")
-    try:
-      bot.delete_message(call.message.chat.id, call.message.message_id)
-    except:
-      pass
+    bot.delete_message(call.message.chat.id, call.message.message_id)
     bot.send_message(
         call.message.chat.id,
-        "✅ আপনার একাউন্ট ভেরিফাই হয়েছে! নিচের মেনু থেকে অপশন বেছে নিন:",
+        "Please select from the menu below:",
         reply_markup=get_main_menu(),
     )
   else:
-    bot.answer_callback_query(call.id, "❌ আপনি এখনো চ্যানেলে জয়েন করেননি! দয়া করে আগে চ্যানেলে জয়েন করুন।", show_alert=True)
+    bot.answer_callback_query(call.id, "আপনি এখনো চ্যানেলে জয়েন করেননি! দয়া করে আগে জয়েন করুন।", show_alert=True)
 
 
 @bot.message_handler(commands=["addstock"])
