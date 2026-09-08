@@ -90,6 +90,60 @@ PANEL_3_COUNTRIES = {
     "Nigeria": 0.5,
 }
 
+# Translations Dictionary
+TRANSLATIONS = {
+    "en": {
+        "welcome": "🌸 Welcome <b>{name}</b>!\n\nPlease select from the menu below:",
+        "join_req": "🌸 Welcome <b>{name}</b>!\n\n⚠️ Please join our channel first before using the bot!",
+        "join_btn": "📢 Join Channel",
+        "joined_btn": "Joined ✅",
+        "joined_success": "Thank you! You have joined the channel.",
+        "not_joined": "You haven't joined the channel yet! Please join first.",
+        "menu_telegram": "📱 Telegram Sell",
+        "menu_profile": "👤 Profile",
+        "menu_deposit": "💰 Deposit",
+        "menu_refer": "🔗 Refer",
+        "menu_support": "☎️ Support",
+        "menu_language": "🌐 Language",
+        "select_lang": "🌐 Please select your preferred language:",
+        "lang_changed": "✅ Language changed to English successfully!",
+        "back": "🔙 Back",
+        "back_to_panels": "🔙 Back to Panels",
+        "stock_out": "❌ <b>Stock Out!</b>\n\nSorry, products are currently out of stock.",
+        "insufficient_bal": "❌ <b>Insufficient Balance!</b>\n\nPrice: {price} USDT. Your balance: {balance:.2f} USDT.",
+        "ask_qty": "📁 Selected Panel: <b>{panel}</b>\n📦 Available Stock: {stock} pcs\n💲 Price per piece: {price} USDT\n💰 Your Balance: {balance:.2f} USDT\n\nHow many pieces do you want to buy? Enter a number:",
+        "purchase_success": "✅ <b>Purchase Successful!</b>\n\nSuccessfully bought {qty} pcs!\n💵 Deducted: {cost} USDT\n💎 New Balance: {new_bal:.2f} USDT",
+        "profile_text": "👤 <b>Your Profile Information:</b>\n\n🆔 User ID: <code>{user_id}</code>\n📛 Name: {name}\n💰 Balance: {balance:.2f} USDT\n🛍️ Total Purchases: {total_buy}",
+        "deposit_main": "💎 <b>Deposit System</b>\n\nSelect the payment method you want to deposit with from the buttons below:",
+        "support_text": "☎️ <b>Customer Support & Official Contact</b>\n\nFor any issues, purchasing products, or payment assistance, please contact our support account directly.\n\n💬 Admin Support: <a href='https://t.me/GV_gmail_07'>@GV_gmail_07</a>\n⏰ Service Time: 24/7 Hours",
+    },
+    "zh": {
+        "welcome": "🌸 欢迎 <b>{name}</b>！\n\n请从下方菜单中选择：",
+        "join_req": "🌸 欢迎 <b>{name}</b>！\n\n⚠️ 使用机器人之前，请先加入我们的频道！",
+        "join_btn": "📢 加入频道",
+        "joined_btn": "已加入 ✅",
+        "joined_success": "谢谢！您已成功加入频道。",
+        "not_joined": "您还没有加入频道！请先加入。",
+        "menu_telegram": "📱 电报服务",
+        "menu_profile": "👤 个人资料",
+        "menu_deposit": "💰 充值",
+        "menu_refer": "🔗 推荐",
+        "menu_support": "☎️ 客服支持",
+        "menu_language": "🌐 语言",
+        "select_log": "🌐 请选择您的首选语言：",
+        "lang_changed": "✅ 语言已成功更改为中文！",
+        "back": "🔙 返回",
+        "back_to_panels": "🔙 返回面板",
+        "stock_out": "❌ <b>缺货！</b>\n\n抱歉，当前产品暂无库存。",
+        "insufficient_bal": "❌ <b>余额不足！</b>\n\n价格：{price} USDT。您的余额：{balance:.2f} USDT。",
+        "ask_qty": "📁 已选面板：<b>{panel}</b>\n📦 可用库存：{stock} 件\n💲 单价：{price} USDT\n💰 您的余额：{balance:.2f} USDT\n\n您想购买多少件？请输入数字：",
+        "purchase_success": "✅ <b>购买成功！</b>\n\n成功购买 {qty} 件！\n💵 扣除：{cost} USDT\n💎 新余额：{new_bal:.2f} USDT",
+        "profile_text": "👤 <b>您的个人资料：</b>\n\n🆔 用户 ID: <code>{user_id}</code>\n📛 姓名：{name}\n💰 余额：{balance:.2f} USDT\n🛍️ 总购买量：{total_buy}",
+        "deposit_main": "💎 <b>充值系统</b>\n\n请从下方按钮中选择您要充值的支付方式：",
+        "support_text": "☎️ <b>客户支持与官方联系方式</b>\n\n如有任何问题、购买产品或支付协助，请直接联系我们的客服账号。\n\n💬 管理员支持：<a href='https://t.me/GV_gmail_07'>@GV_gmail_07</a>\n⏰ 服务时间：24/7 全天候",
+    }
+}
+
 bot = telebot.TeleBot(API_TOKEN, parse_mode="HTML")
 app = Flask(__name__)
 
@@ -207,12 +261,15 @@ def get_user(message):
           "username": username,
           "balance": 0.0,
           "total_buy": 0,
+          "language": "en"
       }
       requests.put(url, json=new_user, timeout=10)
-      return 0.0, 0
+      return 0.0, 0, "en"
 
     existing_name = data.get("first_name", "")
     existing_uname = data.get("username", "")
+    lang = data.get("language", "en")
+    
     if existing_name != first_name or existing_uname != username:
       requests.patch(
           url,
@@ -220,28 +277,36 @@ def get_user(message):
           timeout=10,
       )
 
-    return float(data.get("balance", 0.0)), int(data.get("total_buy", 0))
+    return float(data.get("balance", 0.0)), int(data.get("total_buy", 0)), lang
   except Exception as e:
     print(f"Firebase get_user Error: {e}")
-    return 0.0, 0
+    return 0.0, 0, "en"
 
 
-def get_user_balance_by_id(user_id):
+def get_user_data_by_id(user_id):
   try:
     url = f"{FIREBASE_URL}users/{user_id}.json"
     res = requests.get(url, timeout=10)
     data = res.json()
     if not data:
-      return 0.0, 0
-    return float(data.get("balance", 0.0)), int(data.get("total_buy", 0))
+      return 0.0, 0, "en"
+    return float(data.get("balance", 0.0)), int(data.get("total_buy", 0)), data.get("language", "en")
   except Exception as e:
-    print(f"Firebase get_user_balance_by_id Error: {e}")
-    return 0.0, 0
+    print(f"Firebase get_user_data_by_id Error: {e}")
+    return 0.0, 0, "en"
+
+
+def update_user_language(user_id, lang):
+  try:
+    url = f"{FIREBASE_URL}users/{user_id}/language.json"
+    requests.put(url, json=lang, timeout=10)
+  except Exception as e:
+    print(f"Firebase update_user_language Error: {e}")
 
 
 def update_balance(user_id, amount):
   try:
-    current_bal, _ = get_user_balance_by_id(user_id)
+    current_bal, _, _ = get_user_data_by_id(user_id)
     new_bal = current_bal + amount
     url = f"{FIREBASE_URL}users/{user_id}/balance.json"
     requests.put(url, json=new_bal, timeout=10)
@@ -253,7 +318,7 @@ def update_balance(user_id, amount):
 
 def add_buy_count(user_id):
   try:
-    _, current_buy = get_user_balance_by_id(user_id)
+    _, current_buy, _ = get_user_data_by_id(user_id)
     new_buy = current_buy + 1
     url = f"{FIREBASE_URL}users/{user_id}/total_buy.json"
     requests.put(url, json=new_buy, timeout=10)
@@ -286,25 +351,21 @@ def update_stock(path_key, remaining_items):
     print(f"Firebase update_stock Error: {e}")
 
 
-def get_main_menu():
+def get_main_menu(lang="en"):
+  t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
   markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
   markup.add(
-      KeyboardButton("📱 Telegram Sell"),
-      KeyboardButton("👤 Profile"),
-      KeyboardButton("💰 Deposit"),
-      KeyboardButton("🔗 Refer"),
-      KeyboardButton("☎️ Support")
+      KeyboardButton(t["menu_telegram"]),
+      KeyboardButton(t["menu_profile"]),
+      KeyboardButton(t["menu_deposit"]),
+      KeyboardButton(t["menu_refer"]),
+      KeyboardButton(t["menu_support"]),
+      KeyboardButton(t["menu_language"])
   )
   return markup
 
 
-def cancel_markup():
-  markup = InlineKeyboardMarkup()
-  markup.add(InlineKeyboardButton("❌ Cancel", callback_data="cancel_action"))
-  return markup
-
-
-def get_telegram_main_menu():
+def get_telegram_main_menu(lang="en"):
   markup = InlineKeyboardMarkup()
   panels = ["Panel 1", "Panel 2", "Panel 3", "Panel 4"]
   
@@ -326,20 +387,22 @@ def get_telegram_main_menu():
 @bot.message_handler(commands=["start"])
 def send_welcome(message):
   user_id = message.from_user.id
-  get_user(message)
+  _, _, lang = get_user(message)
   user_states.pop(user_id, None)
   bot.clear_step_handler_by_chat_id(user_id)
   trade_data.pop(user_id, None)
 
+  t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
+
   # Check Force Subscription
   if not check_subscription(user_id):
     channel_markup = InlineKeyboardMarkup()
-    channel_markup.add(InlineKeyboardButton("📢 Join Channel", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}"))
-    channel_markup.add(InlineKeyboardButton("Joined ✅", callback_data="check_join"))
+    channel_markup.add(InlineKeyboardButton(t["join_btn"], url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}"))
+    channel_markup.add(InlineKeyboardButton(t["joined_btn"], callback_data="check_join"))
 
     bot.send_message(
         message.chat.id,
-        f"🌸 Welcome <b>{message.from_user.first_name}</b>!\n\n⚠️ আগে আমাদের চ্যানেলে জয়েন করুন, তারপরে বট ব্যবহার করতে পারবেন!",
+        t["join_req"].format(name=message.from_user.first_name),
         reply_markup=channel_markup,
         parse_mode="HTML",
     )
@@ -347,8 +410,8 @@ def send_welcome(message):
 
   bot.send_message(
       message.chat.id,
-      f"🌸 Welcome <b>{message.from_user.first_name}</b>!\n\nPlease select from the menu below:",
-      reply_markup=get_main_menu(),
+      t["welcome"].format(name=message.from_user.first_name),
+      reply_markup=get_main_menu(lang),
       parse_mode="HTML"
   )
 
@@ -357,16 +420,57 @@ def send_welcome(message):
 @bot.callback_query_handler(func=lambda call: call.data == "check_join")
 def callback_check_join(call):
   user_id = call.from_user.id
+  _, _, lang = get_user_data_by_id(user_id)
+  t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
+
   if check_subscription(user_id):
-    bot.answer_callback_query(call.id, "ধন্যবাদ! আপনি চ্যানেলে জয়েন করেছেন।")
+    bot.answer_callback_query(call.id, t["joined_success"])
     bot.delete_message(call.message.chat.id, call.message.message_id)
     bot.send_message(
         call.message.chat.id,
-        "Please select from the menu below:",
-        reply_markup=get_main_menu(),
+        t["welcome"].format(name=call.from_user.first_name),
+        reply_markup=get_main_menu(lang),
     )
   else:
-    bot.answer_callback_query(call.id, "আপনি এখনো চ্যানেলে জয়েন করেননি! দয়া করে আগে জয়েন করুন।", show_alert=True)
+    bot.answer_callback_query(call.id, t["not_joined"], show_alert=True)
+
+
+# --- Language Selection Handlers ---
+@bot.message_handler(func=lambda message: message.text in ["🌐 Language", "🌐 语言"])
+def language_menu_handler(message):
+  user_id = message.from_user.id
+  if not check_subscription(user_id):
+    bot.send_message(message.chat.id, "⚠️ Please join the channel first!")
+    return
+
+  markup = InlineKeyboardMarkup()
+  markup.add(
+      InlineKeyboardButton("🇬🇧 English", callback_data="lang_en"),
+      InlineKeyboardButton("🇨🇳 中国人 (Chinese)", callback_data="lang_zh")
+  )
+  bot.send_message(
+      message.chat.id,
+      "🌐 Please select your language / 请选择您的语言:",
+      reply_markup=markup
+  )
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("lang_"))
+def language_callback_handler(call):
+  user_id = call.from_user.id
+  lang = call.data.split("_")[1]
+  update_user_language(user_id, lang)
+  
+  t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
+  bot.answer_callback_query(call.id, t["lang_changed"])
+  bot.delete_message(call.message.chat.id, call.message.message_id)
+  
+  bot.send_message(
+      call.message.chat.id,
+      t["welcome"].format(name=call.from_user.first_name),
+      reply_markup=get_main_menu(lang),
+      parse_mode="HTML"
+  )
 
 
 @bot.message_handler(commands=["addstock"])
@@ -414,27 +518,30 @@ def add_stock_handler(message):
     bot.reply_to(message, f"❌ Error occurred: {e}")
 
 
-@bot.message_handler(func=lambda message: message.text == "📱 Telegram Sell")
+@bot.message_handler(func=lambda message: message.text in ["📱 Telegram Sell", "📱 电报服务"])
 def telegram_button_handler(message):
   user_id = message.from_user.id
+  _, _, lang = get_user_data_by_id(user_id)
   if not check_subscription(user_id):
-    bot.send_message(message.chat.id, "⚠️ আগে চ্যানেলে জয়েন করতে হবে, তারপরে এই অপশন আসবে। /start লিখে চেক করুন।")
+    bot.send_message(message.chat.id, "⚠️ Please join the channel first!")
     return
 
   bot.send_message(
       message.chat.id, 
       "Select your panel from the section below:", 
-      reply_markup=get_telegram_main_menu()
+      reply_markup=get_telegram_main_menu(lang)
   )
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "tg_all_countries" or call.data == "back_to_telegram")
 def show_all_countries_menu(call):
+  user_id = call.from_user.id
+  _, _, lang = get_user_data_by_id(user_id)
   bot.edit_message_text(
       "🌍 Select your desired panel from the list:",
       call.message.chat.id,
       call.message.message_id,
-      reply_markup=get_telegram_main_menu(),
+      reply_markup=get_telegram_main_menu(lang),
   )
 
 
@@ -442,10 +549,11 @@ def show_all_countries_menu(call):
 def dynamic_navigation_handler(call):
   user_id = call.from_user.id
   if not check_subscription(user_id):
-    bot.answer_callback_query(call.id, "আগে চ্যানেলে জয়েন করুন!", show_alert=True)
+    bot.answer_callback_query(call.id, "Please join the channel first!", show_alert=True)
     return
 
-  balance, _ = get_user_balance_by_id(user_id)
+  balance, _, lang = get_user_data_by_id(user_id)
+  t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
   
   if call.data.startswith("pnl_"):
     panel_key = call.data.split("_", 1)[1]
@@ -465,7 +573,7 @@ def dynamic_navigation_handler(call):
           row = []
       if row:
         markup.add(*row)
-      markup.add(InlineKeyboardButton("🔙 Back to Panels", callback_data="back_to_telegram"))
+      markup.add(InlineKeyboardButton(t["back_to_panels"], callback_data="back_to_telegram"))
       
       bot.edit_message_text(
           "📁 <b>Panel 1</b>\n\nSelect a country:",
@@ -490,7 +598,7 @@ def dynamic_navigation_handler(call):
           row = []
       if row:
         markup.add(*row)
-      markup.add(InlineKeyboardButton("🔙 Back to Panels", callback_data="back_to_telegram"))
+      markup.add(InlineKeyboardButton(t["back_to_panels"], callback_data="back_to_telegram"))
       
       bot.edit_message_text(
           "📁 <b>Panel 2</b>\n\nSelect a country:",
@@ -515,7 +623,7 @@ def dynamic_navigation_handler(call):
           row = []
       if row:
         markup.add(*row)
-      markup.add(InlineKeyboardButton("🔙 Back to Panels", callback_data="back_to_telegram"))
+      markup.add(InlineKeyboardButton(t["back_to_panels"], callback_data="back_to_telegram"))
       
       bot.edit_message_text(
           "📁 <b>Panel 3</b>\n\nSelect a country:",
@@ -533,9 +641,9 @@ def dynamic_navigation_handler(call):
       
       if stock_count <= 0:
         markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("🔙 Back to Panels", callback_data="back_to_telegram"))
+        markup.add(InlineKeyboardButton(t["back_to_panels"], callback_data="back_to_telegram"))
         bot.edit_message_text(
-            f"❌ <b>Stock Out!</b>\n\nSorry, products for this panel are currently out of stock.",
+            t["stock_out"],
             call.message.chat.id,
             call.message.message_id,
             reply_markup=markup,
@@ -549,9 +657,9 @@ def dynamic_navigation_handler(call):
             InlineKeyboardButton("🆔 Binance UID", callback_data="dep_binance_uid"),
             InlineKeyboardButton("🔹 Tron-TRC20", callback_data="dep_tron")
         )
-        markup.add(InlineKeyboardButton("🔙 Back to Panels", callback_data="back_to_telegram"))
+        markup.add(InlineKeyboardButton(t["back_to_panels"], callback_data="back_to_telegram"))
         bot.edit_message_text(
-            f"❌ <b>Insufficient Balance!</b>\n\nPrice per piece is {item_price_usdt} USDT.",
+            t["insufficient_bal"].format(price=item_price_usdt, balance=balance),
             call.message.chat.id,
             call.message.message_id,
             reply_markup=markup,
@@ -560,9 +668,9 @@ def dynamic_navigation_handler(call):
       else:
         user_states[user_id] = {"action": "buy_item_quantity", "panel": panel_name, "price": item_price_usdt}
         markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("🔙 Back to Panels", callback_data="back_to_telegram"))
+        markup.add(InlineKeyboardButton(t["back_to_panels"], callback_data="back_to_telegram"))
         bot.edit_message_text(
-            f"📁 Selected Panel: <b>{panel_name}</b>\n📦 Available Stock: {stock_count} pcs\n💲 Price per piece: {item_price_usdt} USDT\n💰 Your Balance: {balance:.2f} USDT\n\nHow many pieces do you want to buy? Enter a number:",
+            t["ask_qty"].format(panel=panel_name, stock=stock_count, price=item_price_usdt, balance=balance),
             call.message.chat.id,
             call.message.message_id,
             reply_markup=markup,
@@ -602,7 +710,7 @@ def dynamic_navigation_handler(call):
 
     if stock_count <= 0:
       bot.edit_message_text(
-          f"🌍 Country: <b>{country_name}</b> ({panel_name})\n💲 Price: {item_price_usdt} USDT\n\n❌ <b>Stock Out!</b>\n\nProducts for this country are currently out of stock.",
+          f"🌍 Country: <b>{country_name}</b> ({panel_name})\n💲 Price: {item_price_usdt} USDT\n\n" + t["stock_out"],
           call.message.chat.id,
           call.message.message_id,
           reply_markup=markup,
@@ -619,7 +727,7 @@ def dynamic_navigation_handler(call):
       pay_markup.add(InlineKeyboardButton(f"🔙 Back to {panel_name}", callback_data=f"pnl_{panel_name.replace(' ', '_')}"))
       
       bot.edit_message_text(
-          f"🌍 Country: <b>{country_name}</b> ({panel_name})\n💲 Price: {item_price_usdt} USDT\n\n❌ <b>Insufficient Balance!</b>\n\nYour balance is {balance:.2f} USDT. Please deposit below:",
+          f"🌍 Country: <b>{country_name}</b> ({panel_name})\n💲 Price: {item_price_usdt} USDT\n\n" + t["insufficient_bal"].format(price=item_price_usdt, balance=balance),
           call.message.chat.id,
           call.message.message_id,
           reply_markup=pay_markup,
@@ -639,8 +747,11 @@ def dynamic_navigation_handler(call):
 @bot.message_handler( func=lambda msg: user_states.get(msg.from_user.id, {}).get("action") == "buy_item_quantity" )
 def process_buy_quantity(message):
   user_id = message.from_user.id
+  _, _, lang = get_user_data_by_id(user_id)
+  t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
+
   if not check_subscription(user_id):
-    bot.send_message(message.chat.id, "⚠️ আগে চ্যানেলে জয়েন করুন!")
+    bot.send_message(message.chat.id, "⚠️ Please join the channel first!")
     return
 
   state_data = user_states.get(user_id, {})
@@ -659,7 +770,7 @@ def process_buy_quantity(message):
 
     price_per_item = state_data.get("price", 1.0)
     total_cost = qty * price_per_item
-    balance, _ = get_user_balance_by_id(user_id)
+    balance, _, _ = get_user_data_by_id(user_id)
 
     if balance < total_cost:
       markup = InlineKeyboardMarkup()
@@ -669,7 +780,7 @@ def process_buy_quantity(message):
       )
       bot.send_message(
           message.chat.id,
-          f"❌ <b>Insufficient Balance!</b>\n\nTotal cost: {total_cost} USDT, but your balance is: {balance:.2f} USDT. Please deposit via:",
+          t["insufficient_bal"].format(price=total_cost, balance=balance),
           reply_markup=markup,
           parse_mode="HTML"
       )
@@ -696,8 +807,8 @@ def process_buy_quantity(message):
 
     bot.send_message(
         message.chat.id,
-        f"✅ <b>Purchase Successful!</b>\n\nSuccessfully bought {qty} pcs!\n💵 Deducted: {total_cost} USDT\n💎 New Balance: {new_balance:.2f} USDT",
-        reply_markup=get_main_menu(),
+        t["purchase_success"].format(qty=qty, cost=total_cost, new_bal=new_balance),
+        reply_markup=get_main_menu(lang),
         parse_mode="HTML"
     )
   except ValueError:
@@ -837,20 +948,21 @@ def send_key(message):
 
 
 @bot.message_handler(commands=["profile"])
-@bot.message_handler(func=lambda message: message.text == "👤 Profile")
+@bot.message_handler(func=lambda message: message.text in ["👤 Profile", "👤 个人资料"])
 def profile_handler(message):
   user_id = message.from_user.id
   if not check_subscription(user_id):
-    bot.send_message(message.chat.id, "⚠️ আগে চ্যানেলে জয়েন করুন!")
+    bot.send_message(message.chat.id, "⚠️ Please join the channel first!")
     return
 
-  balance, total_buy = get_user_balance_by_id(user_id)
-  user_info = (
-      f"👤 <b>Your Profile Information:</b>\n\n"
-      f"🆔 User ID: <code>{user_id}</code>\n"
-      f"📛 Name: {message.from_user.first_name}\n"
-      f"💰 Balance: {balance:.2f} USDT\n"
-      f"🛍️ Total Purchases: {total_buy}"
+  balance, total_buy, lang = get_user_data_by_id(user_id)
+  t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
+  
+  user_info = t["profile_text"].format(
+      user_id=user_id,
+      name=message.from_user.first_name,
+      balance=balance,
+      total_buy=total_buy
   )
   bot.send_message(message.chat.id, user_info, parse_mode="HTML")
 
@@ -865,30 +977,28 @@ def get_deposit_main_markup():
 
 
 @bot.message_handler(commands=["deposit"])
-@bot.message_handler(func=lambda message: message.text == "💰 Deposit")
+@bot.message_handler(func=lambda message: message.text in ["💰 Deposit", "💰 充值"])
 def deposit_handler(message):
   user_id = message.from_user.id
+  _, _, lang = get_user_data_by_id(user_id)
   if not check_subscription(user_id):
-    bot.send_message(message.chat.id, "⚠️ আগে চ্যানেলে জয়েন করুন!")
+    bot.send_message(message.chat.id, "⚠️ Please join the channel first!")
     return
 
-  deposit_info = (
-      "💎 <b>Deposit System</b>\n\n"
-      "Select the payment method you want to deposit with from the buttons below:"
-  )
+  t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
   bot.send_message(
-      message.chat.id, deposit_info, reply_markup=get_deposit_main_markup(), parse_mode="HTML"
+      message.chat.id, t["deposit_main"], reply_markup=get_deposit_main_markup(), parse_mode="HTML"
   )
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "back_to_deposit")
 def back_to_deposit_menu(call):
-  deposit_info = (
-      "💎 <b>Deposit System</b>\n\n"
-      "Select the payment method you want to deposit with from the buttons below:"
-  )
+  user_id = call.from_user.id
+  _, _, lang = get_user_data_by_id(user_id)
+  t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
+  
   bot.edit_message_text(
-      deposit_info,
+      t["deposit_main"],
       call.message.chat.id,
       call.message.message_id,
       reply_markup=get_deposit_main_markup(),
@@ -900,7 +1010,7 @@ def back_to_deposit_menu(call):
 def deposit_method_selected(call):
   user_id = call.from_user.id
   if not check_subscription(user_id):
-    bot.answer_callback_query(call.id, "আগে চ্যানেলে জয়েন করুন!", show_alert=True)
+    bot.answer_callback_query(call.id, "Please join the channel first!", show_alert=True)
     return
 
   method_map = {
@@ -1026,11 +1136,11 @@ def admin_deposit_action(call):
 
 
 @bot.message_handler(commands=["refer"])
-@bot.message_handler(func=lambda message: message.text == "🔗 Refer")
+@bot.message_handler(func=lambda message: message.text in ["🔗 Refer", "🔗 推荐"])
 def refer_handler(message):
   user_id = message.from_user.id
   if not check_subscription(user_id):
-    bot.send_message(message.chat.id, "⚠️ আগে চ্যানেলে জয়েন করুন!")
+    bot.send_message(message.chat.id, "⚠️ Please join the channel first!")
     return
 
   bot_username = bot.get_me().username
@@ -1040,26 +1150,22 @@ def refer_handler(message):
 
 
 @bot.message_handler(commands=["support"])
-@bot.message_handler(func=lambda message: message.text == "☎️ Support")
+@bot.message_handler(func=lambda message: message.text in ["☎️ Support", "☎️ 客服支持"])
 def support_handler(message):
   user_id = message.from_user.id
+  _, _, lang = get_user_data_by_id(user_id)
   if not check_subscription(user_id):
-    bot.send_message(message.chat.id, "⚠️ আগে চ্যানেলে জয়েন করুন!")
+    bot.send_message(message.chat.id, "⚠️ Please join the channel first!")
     return
 
-  text = (
-      "☎️ <b>Customer Support & Official Contact</b>\n\n"
-      "For any issues, purchasing products, or payment assistance, please contact our support account directly.\n\n"
-      "💬 Admin Support: <a href='https://t.me/GV_gmail_07'>@GV_gmail_07</a>\n"
-      "⏰ Service Time: 24/7 Hours"
-  )
+  t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
   markup = InlineKeyboardMarkup()
   markup.add(
       InlineKeyboardButton(
           "🟢 Contact Admin", url="https://t.me/GV_gmail_07"
       )
   )
-  bot.send_message(message.chat.id, text, reply_markup=markup, parse_mode="HTML")
+  bot.send_message(message.chat.id, t["support_text"], reply_markup=markup, parse_mode="HTML")
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "close")
