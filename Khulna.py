@@ -90,7 +90,7 @@ PANEL_3_COUNTRIES = {
     "Nigeria": 0.5,
 }
 
-# Full Bilingual Translations Dictionary (Refer removed)
+# Full Bilingual Translations Dictionary
 TRANSLATIONS = {
     "en": {
         "welcome": "🌸 Welcome <b>{name}</b>!\n\nPlease select from the menu below:",
@@ -1001,7 +1001,7 @@ def admin_deposit_action(call):
     new_balance = update_balance(target_id, amount)
 
     bot.edit_message_text(
-        f"✅ Deposit approved successfully!\n\n🆔 User ID: <code>{target_id}</code>\n🧾 Order ID: <code><code>{order_id}</code>\n💰 Added Balance: {amount:.2f} USDT",
+        f"✅ Deposit approved successfully!\n\n🆔 User ID: <code>{target_id}</code>\n🧾 Order ID: <code>{order_id}</code>\n💰 Added Balance: {amount:.2f} USDT",
         call.message.chat.id,
         call.message.message_id,
         parse_mode="HTML"
