@@ -33,9 +33,7 @@ T_EN = {
  "support":"Support\n\nContact: @GV_gmail_07\nAvailable: 24/7",
  "invalid":"Enter valid number.", "no_stock":"Only {stock} pcs available.", "invalid_amt":"Enter valid amount.",
  "dep_ok":"Deposit {amount:.2f} USDT successful! Balance: {balance:.2f} USDT", "dep_cancel":"Deposit cancelled.",
- "lang_ok":"Language changed to English!", "select_lang":"Select language:",
- "join_req":"Welcome {name}!\n\nPlease join channel first!", "joined_ok":"You joined!",
- "not_joined":"You have not joined yet!"
+ "lang_ok":"Language changed to English!", "select_lang":"Select language:"
 }
 T_ZH = {
  "welcome":"Welcome {name}!",
@@ -50,8 +48,7 @@ T_ZH = {
  "dep_step2":"Send Order ID / TrxID:", "dep_pending":"Deposit sent to admin.",
  "support":"Support @GV_gmail_07", "invalid":"Enter valid number.", "no_stock":"Only {stock} pcs.",
  "invalid_amt":"Enter valid amount.", "dep_ok":"Deposit {amount:.2f} OK! Balance {balance:.2f}",
- "dep_cancel":"Deposit cancelled.", "lang_ok":"Language changed!", "select_lang":"Select language:",
- "join_req":"Please join channel!", "joined_ok":"Joined!", "not_joined":"Not joined!"
+ "dep_cancel":"Deposit cancelled.", "lang_ok":"Language changed!", "select_lang":"Select language:"
 }
 TR = {"en": T_EN, "zh": T_ZH}
 def t(lang): return TR.get(lang, T_EN)
