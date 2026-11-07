@@ -178,15 +178,12 @@ app = Flask(__name__)
 trade_data = {}
 user_states = {}
 
-# --- Webhook Reset ---
 try:
   bot.remove_webhook(drop_pending_updates=True)
   time.sleep(1)
 except Exception as e:
   print(f"Webhook reset warning: {e}")
 
-
-# --- Local Database (Auto Payment) ---
 def init_local_db():
   conn = sqlite3.connect("auto_payments.db")
   cursor = conn.cursor()
@@ -194,9 +191,7 @@ def init_local_db():
   conn.commit()
   conn.close()
 
-
 init_local_db()
-
 
 @app.route("/webhook/payment", methods=["POST"])
 def receive_payment():
@@ -220,20 +215,13 @@ def receive_payment():
     )
     conn.commit()
     conn.close()
-    return jsonify(
-        {"status": "success", "message": "Payment stored successfully"}
-    )
+    return jsonify({"status": "success", "message": "Payment stored successfully"})
   except sqlite3.IntegrityError:
-    return (
-        jsonify({"status": "error", "message": "Transaction ID already exists"}),
-        400,
-    )
+    return jsonify({"status": "error", "message": "Transaction ID already exists"}), 400
   except Exception as e:
     return jsonify({"status": "error", "message": str(e)}), 500
 
-
 class HealthCheckHandler(BaseHTTPRequestHandler):
-
   def do_GET(self):
     self.send_response(200)
     self.send_header("Content-type", "text/plain")
@@ -243,25 +231,19 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
   def log_message(self, format, *args):
     return
 
-
 def run_fake_server():
   port = int(os.environ.get("PORT", 8080))
   HTTPServer.allow_reuse_address = True
   server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
   server.serve_forever()
 
-
 def set_bot_commands():
-  commands = [
-      BotCommand("start", "Re-start Bot & Open Menu"),
-  ]
+  commands = [BotCommand("start", "Re-start Bot & Open Menu")]
   try:
     bot.set_my_commands(commands)
   except Exception as e:
     print(f"Failed to set bot commands: {e}")
 
-
-# --- Force Subscription Check Function ---
 def check_subscription(user_id):
   try:
     member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
@@ -270,7 +252,6 @@ def check_subscription(user_id):
     return False
   except Exception as e:
     return False
-
 
 def get_user(message):
   user_id = message.from_user.id
@@ -299,17 +280,12 @@ def get_user(message):
     lang = data.get("language", "en")
     
     if existing_name != first_name or existing_uname != username:
-      requests.patch(
-          url,
-          json={"first_name": first_name, "username": username},
-          timeout=10,
-      )
+      requests.patch(url, json={"first_name": first_name, "username": username}, timeout=10)
 
     return float(data.get("balance", 0.0)), int(data.get("total_buy", 0)), lang
   except Exception as e:
     print(f"Firebase get_user Error: {e}")
     return 0.0, 0, "en"
-
 
 def get_user_data_by_id(user_id):
   try:
@@ -323,14 +299,12 @@ def get_user_data_by_id(user_id):
     print(f"Firebase get_user_data_by_id Error: {e}")
     return 0.0, 0, "en"
 
-
 def update_user_language(user_id, lang):
   try:
     url = f"{FIREBASE_URL}users/{user_id}/language.json"
     requests.put(url, json=lang, timeout=10)
   except Exception as e:
     print(f"Firebase update_user_language Error: {e}")
-
 
 def update_balance(user_id, amount):
   try:
@@ -343,7 +317,6 @@ def update_balance(user_id, amount):
     print(f"Firebase update_balance Error: {e}")
     return 0.0
 
-
 def add_buy_count(user_id):
   try:
     _, current_buy, _ = get_user_data_by_id(user_id)
@@ -352,7 +325,6 @@ def add_buy_count(user_id):
     requests.put(url, json=new_buy, timeout=10)
   except Exception as e:
     print(f"Firebase add_buy_count Error: {e}")
-
 
 def get_stock(path_key):
   try:
@@ -369,7 +341,6 @@ def get_stock(path_key):
     print(f"Firebase get_stock Error: {e}")
     return []
 
-
 def update_stock(path_key, remaining_items):
   try:
     safe_key = path_key.replace(" ", "_").replace(",", "").replace(".", "")
@@ -377,7 +348,6 @@ def update_stock(path_key, remaining_items):
     requests.put(url, json=remaining_items, timeout=10)
   except Exception as e:
     print(f"Firebase update_stock Error: {e}")
-
 
 def get_main_menu(lang="en"):
   t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
@@ -392,15 +362,22 @@ def get_main_menu(lang="en"):
   )
   return markup
 
-
 def get_telegram_main_menu(lang="en"):
   markup = InlineKeyboardMarkup()
   panels = ["Panel 1", "Panel 2", "Panel 3", "Panel 4"]
   
   row = []
   for panel in panels:
-    stock_items = get_stock(panel)
-    count = len(stock_items)
+    # টোটাল স্টক কাউন্ট করার জন্য সঠিক সাব-পাথ বা ডিরেক্ট চেক করা হচ্ছে
+    if panel == "Panel 1":
+      count = sum(len(get_stock(f"Panel 1/{c}")) for c in PANEL_1_COUNTRIES.keys())
+    elif panel == "Panel 2":
+      count = sum(len(get_stock(f"Panel 2/{c}")) for c in PANEL_2_COUNTRIES.keys())
+    elif panel == "Panel 3":
+      count = sum(len(get_stock(f"Panel 3/{c}")) for c in PANEL_3_COUNTRIES.keys())
+    else:
+      count = len(get_stock(panel))
+
     btn_text = f"★ {panel} [{count} pcs]"
     row.append(InlineKeyboardButton(btn_text, callback_data=f"pnl_{panel.replace(' ', '_')}"))
     if len(row) == 2:
@@ -410,7 +387,6 @@ def get_telegram_main_menu(lang="en"):
     markup.add(*row)
     
   return markup
-
 
 @bot.message_handler(commands=["start"])
 def send_welcome(message):
@@ -422,7 +398,6 @@ def send_welcome(message):
 
   t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
 
-  # Check Force Subscription
   if not check_subscription(user_id):
     channel_markup = InlineKeyboardMarkup()
     channel_markup.add(InlineKeyboardButton(t["join_btn"], url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}"))
@@ -443,8 +418,6 @@ def send_welcome(message):
       parse_mode="HTML"
   )
 
-
-# 'Joined ✅' Callback Handler
 @bot.callback_query_handler(func=lambda call: call.data == "check_join")
 def callback_check_join(call):
   user_id = call.from_user.id
@@ -462,8 +435,6 @@ def callback_check_join(call):
   else:
     bot.answer_callback_query(call.id, t["not_joined"], show_alert=True)
 
-
-# --- Language Selection Handlers ---
 @bot.message_handler(func=lambda message: message.text in ["🌐 Language", "🌐 语言"])
 def language_menu_handler(message):
   user_id = message.from_user.id
@@ -478,12 +449,7 @@ def language_menu_handler(message):
       InlineKeyboardButton("🇬🇧 English", callback_data="lang_en"),
       InlineKeyboardButton("🇨🇳 中国人 (Chinese)", callback_data="lang_zh")
   )
-  bot.send_message(
-      message.chat.id,
-      t["select_lang"],
-      reply_markup=markup
-  )
-
+  bot.send_message(message.chat.id, t["select_lang"], reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("lang_"))
 def language_callback_handler(call):
@@ -501,7 +467,6 @@ def language_callback_handler(call):
       reply_markup=get_main_menu(lang),
       parse_mode="HTML"
   )
-
 
 @bot.message_handler(commands=["addstock"])
 def add_stock_handler(message):
@@ -521,14 +486,11 @@ def add_stock_handler(message):
 
     content = text_parts[1]
     if "|" not in content:
-      bot.reply_to(
-          message, "⚠️ Please put a pipe (|) between the path and the product."
-      )
+      bot.reply_to(message, "⚠️ Please put a pipe (|) between the path and the product.")
       return
 
     target_path, products_raw = content.split("|", 1)
     target_path = target_path.strip()
-    
     new_products = [p.strip() for p in products_raw.split("\n") if p.strip()]
 
     if not new_products:
@@ -547,7 +509,6 @@ def add_stock_handler(message):
   except Exception as e:
     bot.reply_to(message, f"❌ Error occurred: {e}")
 
-
 @bot.message_handler(func=lambda message: message.text in ["📱 Telegram Buy Now", "📱 电报购买"])
 def telegram_button_handler(message):
   user_id = message.from_user.id
@@ -563,7 +524,6 @@ def telegram_button_handler(message):
       reply_markup=get_telegram_main_menu(lang)
   )
 
-
 @bot.callback_query_handler(func=lambda call: call.data == "tg_all_countries" or call.data == "back_to_telegram")
 def show_all_countries_menu(call):
   user_id = call.from_user.id
@@ -575,7 +535,6 @@ def show_all_countries_menu(call):
       call.message.message_id,
       reply_markup=get_telegram_main_menu(lang),
   )
-
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("pnl_") or call.data.startswith("cntry_"))
 def dynamic_navigation_handler(call):
@@ -775,8 +734,7 @@ def dynamic_navigation_handler(call):
           parse_mode="HTML"
       )
 
-
-@bot.message_handler( func=lambda msg: user_states.get(msg.from_user.id, {}).get("action") == "buy_item_quantity" )
+@bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("action") == "buy_item_quantity")
 def process_buy_quantity(message):
   user_id = message.from_user.id
   _, _, lang = get_user_data_by_id(user_id)
@@ -846,7 +804,6 @@ def process_buy_quantity(message):
   except ValueError:
     bot.send_message(message.chat.id, t["invalid_num"])
 
-
 @bot.message_handler(commands=["broadcast"])
 def broadcast_handler(message):
   if message.from_user.id != ADMIN_ID:
@@ -855,14 +812,10 @@ def broadcast_handler(message):
 
   text_parts = message.text.split(maxsplit=1)
   if len(text_parts) < 2:
-    bot.reply_to(
-        message,
-        "⚠️ Please write the broadcast message.\nExample: <code>/broadcast your message</code>",
-    )
+    bot.reply_to(message, "⚠️ Please write the broadcast message.")
     return
 
   broadcast_msg = text_parts[1]
-
   try:
     url = f"{FIREBASE_URL}users.json"
     res = requests.get(url, timeout=15)
@@ -877,64 +830,22 @@ def broadcast_handler(message):
 
   success_count = 0
   fail_count = 0
-  blocked_users_list = []
+  sent_notification = bot.reply_to(message, "🚀 Broadcast started, please wait...")
 
-  sent_notification = bot.reply_to(
-      message, "🚀 Broadcast started, please wait..."
-  )
-
-  for u_id_str, u_info in users_data.items():
+  for u_id_str in users_data.keys():
     try:
-      u_id = int(u_id_str)
-      name = (
-          u_info.get("first_name", "Unknown")
-          if isinstance(u_info, dict)
-          else "Unknown"
-      )
-      uname = (
-          u_info.get("username", "No_Username")
-          if isinstance(u_info, dict)
-          else "No_Username"
-      )
-
-      bot.send_message(u_id, broadcast_msg, parse_mode="HTML")
+      bot.send_message(int(u_id_str), broadcast_msg, parse_mode="HTML")
       success_count += 1
       time.sleep(0.08)
-    except Exception as e:
+    except:
       fail_count += 1
-      err_str = str(e).lower()
-      if (
-          "blocked" in err_str
-          or "deactivated" in err_str
-          or "forbidden" in err_str
-      ):
-        blocked_users_list.append(
-            f"• {name} (@{uname}) - <code>{u_id_str}</code>"
-        )
-      else:
-        blocked_users_list.append(
-            f"• {name} (@{uname}) - <code>{u_id_str}</code> (Error)"
-        )
-
-  report_text = (
-      f"✅ <b>Broadcast Completed!</b>\n\n"
-      f"👥 Successfully sent: {success_count}\n"
-      f"❌ Failed: {fail_count}\n"
-  )
-
-  if blocked_users_list:
-    report_text += (
-        f"\n🚫 <b>Blocked or Failed Users:</b>\n"
-        + "\n".join(blocked_users_list[:20])
-    )
 
   bot.edit_message_text(
-      report_text,
+      f"✅ <b>Broadcast Completed!</b>\n\n👥 Successfully sent: {success_count}\n❌ Failed: {fail_count}",
       chat_id=message.chat.id,
       message_id=sent_notification.message_id,
       parse_mode="HTML",
   )
-
 
 @bot.message_handler(commands=["users"])
 def list_users(message):
@@ -954,30 +865,7 @@ def list_users(message):
     bot.reply_to(message, "No users in the database!")
     return
 
-  text = f"👥 <b>Total Users: {len(users_data)}</b>\n\n"
-  count = 1
-
-  for u_id_str, u_info in users_data.items():
-    if isinstance(u_info, dict):
-      name = u_info.get("first_name", "Unknown")
-      uname = u_info.get("username", "No_Username")
-      u_id = u_info.get("user_id", u_id_str)
-      text += f"{count}. {name} (@{uname}) - <code>{u_id}</code>\n"
-    else:
-      text += f"{count}. ID: <code>{u_id_str}</code>\n"
-    count += 1
-    if count > 30:
-      text += "\n...and many more."
-      break
-
-  bot.send_message(message.chat.id, text, parse_mode="HTML")
-
-
-@bot.message_handler(commands=["key"])
-def send_key(message):
-  key_text = "SUP-7FE5-9F3A-2B8F-6736-5C32-353D-8EC1-B954"
-  bot.send_message(message.chat.id, f"`{key_text}`", parse_mode="Markdown")
-
+  bot.send_message(message.chat.id, f"👥 <b>Total Users: {len(users_data)}</b>", parse_mode="HTML")
 
 @bot.message_handler(commands=["profile"])
 @bot.message_handler(func=lambda message: message.text in ["👤 Profile", "👤 个人资料"])
@@ -998,7 +886,6 @@ def profile_handler(message):
   )
   bot.send_message(message.chat.id, user_info, parse_mode="HTML")
 
-
 def get_deposit_main_markup():
   markup = InlineKeyboardMarkup()
   markup.add(
@@ -1006,7 +893,6 @@ def get_deposit_main_markup():
       InlineKeyboardButton("🔹 Tron-TRC20", callback_data="dep_tron")
   )
   return markup
-
 
 @bot.message_handler(commands=["deposit"])
 @bot.message_handler(func=lambda message: message.text in ["💰 Deposit", "💰 充值"])
@@ -1018,17 +904,13 @@ def deposit_handler(message):
     return
 
   t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
-  bot.send_message(
-      message.chat.id, t["deposit_main"], reply_markup=get_deposit_main_markup(), parse_mode="HTML"
-  )
-
+  bot.send_message(message.chat.id, t["deposit_main"], reply_markup=get_deposit_main_markup(), parse_mode="HTML")
 
 @bot.callback_query_handler(func=lambda call: call.data == "back_to_deposit")
 def back_to_deposit_menu(call):
   user_id = call.from_user.id
   _, _, lang = get_user_data_by_id(user_id)
   t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
-  
   bot.edit_message_text(
       t["deposit_main"],
       call.message.chat.id,
@@ -1036,7 +918,6 @@ def back_to_deposit_menu(call):
       reply_markup=get_deposit_main_markup(),
       parse_mode="HTML"
   )
-
 
 @bot.callback_query_handler(func=lambda call: call.data in ["dep_binance_uid", "dep_tron"])
 def deposit_method_selected(call):
@@ -1052,7 +933,6 @@ def deposit_method_selected(call):
       "dep_tron": ("Tron-TRC20", DOLLAR_CONFIG["tron_address"])
   }
   method_name, address = method_map[call.data]
-  
   user_states[user_id] = {"action": "deposit_amount", "method": method_name}
   
   markup = InlineKeyboardMarkup()
@@ -1065,8 +945,7 @@ def deposit_method_selected(call):
       parse_mode="HTML",
   )
 
-
-@bot.message_handler( func=lambda msg: user_states.get(msg.from_user.id, {}).get("action") == "deposit_amount" )
+@bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("action") == "deposit_amount")
 def get_deposit_amount(message):
   user_id = message.from_user.id
   _, _, lang = get_user_data_by_id(user_id)
@@ -1080,17 +959,11 @@ def get_deposit_amount(message):
 
     user_states[user_id]["amount"] = amount
     user_states[user_id]["action"] = "deposit_order_id"
-
-    bot.send_message(
-        message.chat.id,
-        t["deposit_step2"],
-        parse_mode="HTML"
-    )
+    bot.send_message(message.chat.id, t["deposit_step2"], parse_mode="HTML")
   except ValueError:
     bot.send_message(message.chat.id, t["invalid_num"])
 
-
-@bot.message_handler( func=lambda msg: user_states.get(msg.from_user.id, {}).get("action") == "deposit_order_id" )
+@bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("action") == "deposit_order_id")
 def get_deposit_order_id(message):
   user_id = message.from_user.id
   _, _, lang = get_user_data_by_id(user_id)
@@ -1101,22 +974,12 @@ def get_deposit_order_id(message):
   amount = state_data.get("amount", 0.0)
   order_id = message.text.strip()
 
-  bot.send_message(
-      message.chat.id,
-      t["deposit_pending"],
-      reply_markup=get_main_menu(lang)
-  )
+  bot.send_message(message.chat.id, t["deposit_pending"], reply_markup=get_main_menu(lang))
 
   admin_markup = InlineKeyboardMarkup()
   admin_markup.row(
-      InlineKeyboardButton(
-          "✅ Approve",
-          callback_data=f"depapprove|{user_id}|{amount:.2f}|{order_id}",
-      ),
-      InlineKeyboardButton(
-          "❌ Reject",
-          callback_data=f"depreject|{user_id}|{order_id}",
-      ),
+      InlineKeyboardButton("✅ Approve", callback_data=f"depapprove|{user_id}|{amount:.2f}|{order_id}"),
+      InlineKeyboardButton("❌ Reject", callback_data=f"depreject|{user_id}|{order_id}"),
   )
 
   bot.send_message(
@@ -1130,8 +993,7 @@ def get_deposit_order_id(message):
       parse_mode="HTML"
   )
 
-
-@bot.callback_query_handler( func=lambda call: call.data.startswith("depapprove|") or call.data.startswith("depreject|") )
+@bot.callback_query_handler(func=lambda call: call.data.startswith("depapprove|") or call.data.startswith("depreject|"))
 def admin_deposit_action(call):
   parts = call.data.split("|")
   action = parts[0]
@@ -1151,10 +1013,7 @@ def admin_deposit_action(call):
         parse_mode="HTML"
     )
     try:
-      bot.send_message(
-          target_id,
-          target_t["dep_success_user"].format(amount=amount, balance=new_balance),
-      )
+      bot.send_message(target_id, target_t["dep_success_user"].format(amount=amount, balance=new_balance))
     except:
       pass
 
@@ -1164,13 +1023,12 @@ def admin_deposit_action(call):
         f"❌ Deposit cancelled.\n🆔 User ID: <code>{target_id}</code>\n🧾 Order ID: <code>{order_id}</code>",
         call.message.chat.id,
         call.message.message_id,
-        parse_no="HTML"
+        parse_mode="HTML"
     )
     try:
       bot.send_message(target_id, target_t["dep_cancel_user"])
     except:
       pass
-
 
 @bot.message_handler(commands=["refer"])
 @bot.message_handler(func=lambda message: message.text in ["🔗 Refer", "🔗 推荐"])
@@ -1186,7 +1044,6 @@ def refer_handler(message):
   bot_link = f"https://t.me/{bot_username}?start={user_id}"
   bot.send_message(message.chat.id, t["refer_text"].format(link=bot_link), parse_mode="HTML")
 
-
 @bot.message_handler(commands=["support"])
 @bot.message_handler(func=lambda message: message.text in ["☎️ Support", "☎️ 客服支持"])
 def support_handler(message):
@@ -1198,18 +1055,8 @@ def support_handler(message):
 
   t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
   markup = InlineKeyboardMarkup()
-  markup.add(
-      InlineKeyboardButton(
-          t["contact_admin"], url="https://t.me/GV_gmail_07"
-      )
-  )
+  markup.add(InlineKeyboardButton(t["contact_admin"], url="https://t.me/GV_gmail_07"))
   bot.send_message(message.chat.id, t["support_text"], reply_markup=markup, parse_mode="HTML")
-
-
-@bot.callback_query_handler(func=lambda call: call.data == "close")
-def close_msg(call):
-  bot.delete_message(call.message.chat.id, call.message.message_id)
-
 
 if __name__ == "__main__":
   threading.Thread(target=run_fake_server, daemon=True).start()
