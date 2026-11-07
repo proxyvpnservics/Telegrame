@@ -65,11 +65,19 @@ def get_all_stock():
         d = requests.get(f"{FIREBASE_URL}stock.json", timeout=5).json() or {}
         _cache["data"]=d; _cache["time"]=time.time(); return d
     except: return _cache["data"]
+
 def get_stock(path):
-    d = get_all_stock().get(safe_key(path))
+    d = get_all_stock()
+    for part in safe_key(path).split("/"):
+        if isinstance(d, dict):
+            d = d.get(part)
+        else:
+            d = None
+            break
     if isinstance(d, list): return [x for x in d if x]
     if isinstance(d, dict): return list(d.values())
     return []
+
 def update_stock(path, rem):
     try:
         requests.put(f"{FIREBASE_URL}stock/{safe_key(path)}.json", json=rem, timeout=5); _cache["time"]=0
