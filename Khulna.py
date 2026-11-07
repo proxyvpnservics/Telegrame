@@ -1,4 +1,4 @@
-import os, sqlite3, threading, time, traceback
+import os, threading, time, traceback
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from flask import Flask, jsonify, request
 import telebot
@@ -10,10 +10,20 @@ UID_1 = "1076781671"
 ADDR_2 = "TPgp911fhwLoK2cKHMvV5oRzFX5hc9NCY8"
 
 PANEL_PRICES = {"Panel 1": 1.0, "Panel 2": 1.2, "Panel 3": 2.1, "Panel 4": 1.5}
+
+# ইন-মেমোরি স্টক ডাটা (ডাটাবেজ ছাড়াই কাজ করার জন্য)
+STOCK_DB = {
+    "Panel 1/Colombia": ["ACC-COL-1", "ACC-COL-2", "ACC-COL-3"],
+    "Panel 1/India": ["ACC-IND-1", "ACC-IND-2"],
+    "Panel 2/Myanmar": ["ACC-MM-1", "ACC-MM-2"],
+    "Panel 3/Nigeria": ["ACC-NG-1"],
+    "Panel 4/United States": ["ACC-US-1", "ACC-US-2"]
+}
+
 P1 = {"Colombia":0.5,"India":0.55,"Bangladesh":0.55,"United States":0.55,"Indonesia":0.6,"Chile":0.65,"Kenya":0.65,"Myanmar":0.65,"Angola":0.68,"Afghanistan":0.7,"Zimbabwe":0.7,"Sudan":0.7,"Cameroon":0.7,"Madagascar":0.7,"Tanzania":0.6,"Algeria":0.75,"Jamaica":0.75,"Sri Lanka":0.8,"Eswatini":0.8,"Burkina Faso":0.8}
 P2 = {"Myanmar":0.35,"Colombia":0.55,"Uganda":0.55,"Togo":0.55,"Sudan":0.58,"Zimbabwe":0.6,"Nigeria":0.6,"Congo, The Democratic":0.6,"Sierra Leone":0.6,"Madagascar":0.6,"Angola":0.65,"Niger":0.65,"Pakistan":0.65,"Zambia":0.65,"India":0.65,"Chile":0.65,"Afghanistan":0.65,"Ghana":0.65,"Cuba":0.7,"Thailand":0.7}
 P3 = {"Nigeria":0.5}
-P4 = {"United States": 1.0, "Canada": 1.1} # প্যানেল ৪ এর জন্য কান্ট্রি ম্যাপিং যোগ করা হয়েছে
+P4 = {"United States": 1.0, "Canada": 1.1}
 PANEL_MAP = {"1": P1, "2": P2, "3": P3, "4": P4}
 
 T_EN = {
@@ -54,67 +64,59 @@ def t(lang): return TR.get(lang, T_EN)
 bot = telebot.TeleBot(API_TOKEN, parse_mode="HTML")
 app = Flask(__name__)
 user_states = {}
-db_lock = threading.Lock()
-
-def db():
-    c = sqlite3.connect("bot.db", check_same_thread=False)
-    c.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, first_name TEXT, username TEXT, balance REAL DEFAULT 0, total_buy INTEGER DEFAULT 0, language TEXT DEFAULT 'en')")
-    c.execute("CREATE TABLE IF NOT EXISTS stock (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT, item TEXT)")
-    c.execute("CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, trx_id TEXT UNIQUE, amount REAL, sender TEXT)")
-    c.commit()
-    return c
+users_memory = {}  # {user_id: {"balance": 0.0, "total_buy": 0, "language": "en", "first_name": "", "username": ""}}
+data_lock = threading.Lock()
 
 def get_stock(path):
-    with db_lock:
-        c = db()
-        rows = c.execute("SELECT item FROM stock WHERE path=? ORDER BY id", (path,)).fetchall()
-        c.close()
-        return [r[0] for r in rows]
+    with data_lock:
+        return STOCK_DB.get(path, [])
 
 def update_stock(path, rem):
-    with db_lock:
-        c = db()
-        c.execute("DELETE FROM stock WHERE path=?", (path,))
-        for it in rem:
-            c.execute("INSERT INTO stock (path, item) VALUES (?,?)", (path, it))
-        c.commit(); c.close()
+    with data_lock:
+        STOCK_DB[path] = rem
 
 def get_user_data(uid):
-    with db_lock:
-        c = db()
-        r = c.execute("SELECT balance, total_buy, language FROM users WHERE user_id=?", (uid,)).fetchone()
-        c.close()
-        if not r: return 0.0, 0, "en"
-        return float(r[0]), int(r[1]), r[2] or "en"
+    with data_lock:
+        if uid not in users_memory:
+            users_memory[uid] = {"balance": 0.0, "total_buy": 0, "language": "en"}
+        u = users_memory[uid]
+        return float(u["balance"]), int(u["total_buy"]), u.get("language", "en")
 
 def get_user(msg):
     uid = msg.from_user.id
-    with db_lock:
-        c = db()
-        r = c.execute("SELECT balance, total_buy, language FROM users WHERE user_id=?", (uid,)).fetchone()
-        if not r:
-            c.execute("INSERT INTO users (user_id, first_name, username, balance, total_buy, language) VALUES (?,?,?,?,?,?)",
-                      (uid, msg.from_user.first_name or "U", msg.from_user.username or "", 0.0, 0, "en"))
-            c.commit(); c.close(); return 0.0, 0, "en"
-        c.close()
-        return float(r[0]), int(r[1]), r[2] or "en"
+    with data_lock:
+        if uid not in users_memory:
+            users_memory[uid] = {
+                "balance": 0.0, 
+                "total_buy": 0, 
+                "language": "en", 
+                "first_name": msg.from_user.first_name or "U", 
+                "username": msg.from_user.username or ""
+            }
+        u = users_memory[uid]
+        return float(u["balance"]), int(u["total_buy"]), u.get("language", "en")
 
 def set_balance(uid, nb):
-    with db_lock:
-        c = db(); c.execute("UPDATE users SET balance=? WHERE user_id=?", (nb, uid)); c.commit(); c.close()
+    with data_lock:
+        if uid not in users_memory:
+            users_memory[uid] = {"balance": 0.0, "total_buy": 0, "language": "en"}
+        users_memory[uid]["balance"] = nb
 
 def add_balance(uid, amt):
     bal, _, _ = get_user_data(uid)
-    set_balance(uid, bal + amt)
-    return bal + amt
+    nb = bal + amt
+    set_balance(uid, nb)
+    return nb
 
 def inc_total_buy(uid):
-    with db_lock:
-        c = db(); c.execute("UPDATE users SET total_buy = total_buy + 1 WHERE user_id=?", (uid,)); c.commit(); c.close()
+    with data_lock:
+        if uid in users_memory:
+            users_memory[uid]["total_buy"] = users_memory[uid].get("total_buy", 0) + 1
 
 def set_lang(uid, lg):
-    with db_lock:
-        c = db(); c.execute("UPDATE users SET language=? WHERE user_id=?", (lg, uid)); c.commit(); c.close()
+    with data_lock:
+        if uid in users_memory:
+            users_memory[uid]["language"] = lg
 
 def main_menu(lang):
     mk = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
@@ -127,7 +129,9 @@ def panel_menu():
     return mk
 
 def dep_menu():
-    mk = InlineKeyboardMarkup(); mk.add(InlineKeyboardButton("Method 1 UID", callback_data="dep_bin"), InlineKeyboardButton("Method 2 TRC20", callback_data="dep_tron")); return mk
+    mk = InlineKeyboardMarkup()
+    mk.add(InlineKeyboardButton("Method 1 UID", callback_data="dep_bin"), InlineKeyboardButton("Method 2 TRC20", callback_data="dep_tron"))
+    return mk
 
 def safe_edit(call, text, markup=None):
     try: bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="HTML")
@@ -237,7 +241,6 @@ def ALL_CALLBACKS(call):
             except: pass
             bot.send_message(call.message.chat.id, t(lg)["lang_ok"], reply_markup=main_menu(lg)); return
         
-        # প্যানেল হ্যান্ডলিং ঠিক করা হলো যাতে প্রতিটি প্যানেল তার কান্ট্রি লিস্ট দেখায়
         if data in ["p1", "p2", "p3", "p4"]:
             num = data[1]; pname = f"Panel {num}"
             if num in PANEL_MAP:
@@ -291,12 +294,7 @@ def ALL_CALLBACKS(call):
 
 @app.route("/webhook/payment", methods=["POST"])
 def pay():
-    d = request.json
-    if not d or not d.get("trx_id"): return jsonify({"status": "error"}), 400
-    try:
-        with db_lock:
-            c = db(); c.execute("INSERT INTO transactions (trx_id, amount, sender) VALUES (?,?,?)", (d["trx_id"], float(d["amount"]), d.get("sender", ""))); c.commit(); c.close(); return jsonify({"status": "success"})
-    except: return jsonify({"status": "error", "message": "dup"}), 400
+    return jsonify({"status": "success"})
 
 class H(BaseHTTPRequestHandler):
     def do_GET(self): self.send_response(200); self.end_headers(); self.wfile.write(b"Alive")
@@ -305,13 +303,12 @@ class H(BaseHTTPRequestHandler):
 def run_server(): HTTPServer(("0.0.0.0", int(os.environ.get("PORT", 8080))), H).serve_forever()
 
 if __name__ == "__main__":
-    db().close()
     threading.Thread(target=run_server, daemon=True).start()
-    print("Bot starting... NO FIREBASE, SQLITE ONLY")
+    print("Bot starting... WITHOUT DATABASE (IN-MEMORY MODE)")
     try: bot.remove_webhook(drop_pending_updates=True); time.sleep(1)
     except Exception as e: print(e)
     try: bot.set_my_commands([BotCommand("start", "Re-start")])
     except: pass
-    while type(True) == bool:
+    while True:
         try: bot.infinity_polling(skip_pending=True, timeout=20, long_polling_timeout=20)
         except Exception as e: print("Polling:", e); time.sleep(5)
