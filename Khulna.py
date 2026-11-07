@@ -90,7 +90,7 @@ PANEL_3_COUNTRIES = {
     "Nigeria": 0.5,
 }
 
-# Full Bilingual Translations Dictionary
+# Full Bilingual Translations Dictionary (Refer removed)
 TRANSLATIONS = {
     "en": {
         "welcome": "🌸 Welcome <b>{name}</b>!\n\nPlease select from the menu below:",
@@ -102,7 +102,6 @@ TRANSLATIONS = {
         "menu_telegram": "📱 Telegram Buy Now",
         "menu_profile": "👤 Profile",
         "menu_deposit": "💰 Deposit",
-        "menu_refer": "🔗 Refer",
         "menu_support": "☎️ Support",
         "menu_language": "🌐 Language",
         "select_lang": "🌐 Please select your language / 请选择您的语言:",
@@ -121,7 +120,6 @@ TRANSLATIONS = {
         "deposit_step1": "💎 <b>{method} Deposit</b>\n\nSend payment to:\nAddress / ID: <code>{address}</code>\n\nStep 1: Enter the amount of USDT you sent (numbers only, e.g., 5 or 10):",
         "deposit_step2": "🧾 Now please send your <b>Order ID / Transaction ID (TrxID)</b>:",
         "deposit_pending": "⏳ Your deposit request has been sent to the admin. Please wait.",
-        "refer_text": "🔗 <b>Referral Program</b>\n\nInvite your friends to our bot using your personal referral link below and grow your network!\n\n🔗 Your Referral Link:\n<code>{link}</code>",
         "support_text": "☎️ <b>Customer Support & Assistance</b>\n\nNeed help with anything? Feel free to reach out to our support team anytime for assistance.\n\n💬 Official Support: <a href='https://t.me/GV_gmail_07'>@GV_gmail_07</a>\n⏰ Available: 24/7 Hours",
         "contact_admin": "🟢 Contact Support",
         "back": "🔙 Back",
@@ -141,7 +139,6 @@ TRANSLATIONS = {
         "menu_telegram": "📱 电报购买",
         "menu_profile": "👤 个人资料",
         "menu_deposit": "💰 充值",
-        "menu_refer": "🔗 推荐",
         "menu_support": "☎️ 客服支持",
         "menu_language": "🌐 语言",
         "select_lang": "🌐 请选择您的语言 / Please select your language:",
@@ -160,7 +157,6 @@ TRANSLATIONS = {
         "deposit_step1": "💎 <b>{method} 充值</b>\n\n请将款项发送至:\n地址 / ID: <code>{address}</code>\n\n第一步：输入您发送的 USDT 金额（仅限数字，例如 5 或 10）：",
         "deposit_step2": "🧾 现在请发送您的 <b>订单号 / 交易哈希 (TrxID)</b>：",
         "deposit_pending": "⏳ 您的充值请求已发送给管理员，请耐心等待。",
-        "refer_text": "🔗 <b>推荐计划</b>\n\n使用下方的个人推荐链接邀请您的好友加入我们的机器人，拓展您的网络！\n\n🔗 您的推荐链接：\n<code>{link}</code>",
         "support_text": "☎️ <b>客户支持与协助</b>\n\n需要任何帮助吗？随时联系我们的客服团队获取支持。\n\n💬 官方客服：<a href='https://t.me/GV_gmail_07'>@GV_gmail_07</a>\n⏰ 服务时间：24/7 全天候",
         "contact_admin": "🟢 联系客服",
         "back": "🔙 返回",
@@ -356,7 +352,6 @@ def get_main_menu(lang="en"):
       KeyboardButton(t["menu_telegram"]),
       KeyboardButton(t["menu_profile"]),
       KeyboardButton(t["menu_deposit"]),
-      KeyboardButton(t["menu_refer"]),
       KeyboardButton(t["menu_support"]),
       KeyboardButton(t["menu_language"])
   )
@@ -368,7 +363,6 @@ def get_telegram_main_menu(lang="en"):
   
   row = []
   for panel in panels:
-    # টোটাল স্টক কাউন্ট করার জন্য সঠিক সাব-পাথ বা ডিরেক্ট চেক করা হচ্ছে
     if panel == "Panel 1":
       count = sum(len(get_stock(f"Panel 1/{c}")) for c in PANEL_1_COUNTRIES.keys())
     elif panel == "Panel 2":
@@ -1007,7 +1001,7 @@ def admin_deposit_action(call):
     new_balance = update_balance(target_id, amount)
 
     bot.edit_message_text(
-        f"✅ Deposit approved successfully!\n\n🆔 User ID: <code>{target_id}</code>\n🧾 Order ID: <code>{order_id}</code>\n💰 Added Balance: {amount:.2f} USDT",
+        f"✅ Deposit approved successfully!\n\n🆔 User ID: <code>{target_id}</code>\n🧾 Order ID: <code><code>{order_id}</code>\n💰 Added Balance: {amount:.2f} USDT",
         call.message.chat.id,
         call.message.message_id,
         parse_mode="HTML"
@@ -1029,20 +1023,6 @@ def admin_deposit_action(call):
       bot.send_message(target_id, target_t["dep_cancel_user"])
     except:
       pass
-
-@bot.message_handler(commands=["refer"])
-@bot.message_handler(func=lambda message: message.text in ["🔗 Refer", "🔗 推荐"])
-def refer_handler(message):
-  user_id = message.from_user.id
-  _, _, lang = get_user_data_by_id(user_id)
-  if not check_subscription(user_id):
-    bot.send_message(message.chat.id, "⚠️ Please join the channel first!")
-    return
-
-  t = TRANSLATIONS.get(lang, TRANSLATIONS["en"])
-  bot_username = bot.get_me().username
-  bot_link = f"https://t.me/{bot_username}?start={user_id}"
-  bot.send_message(message.chat.id, t["refer_text"].format(link=bot_link), parse_mode="HTML")
 
 @bot.message_handler(commands=["support"])
 @bot.message_handler(func=lambda message: message.text in ["☎️ Support", "☎️ 客服支持"])
