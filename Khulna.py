@@ -65,7 +65,7 @@ def safe_key(s): return s.replace(" ","_").replace(",","").replace(".","")
 def get_all_stock():
     if time.time() - _cache["time"] < 5 and _cache["data"]: return _cache["data"]
     try:
-        d = requests.get(f"{FIREBASE_URL}stock.json", timeout=10).json() or {}
+        d = requests.get(f"{FIREBASE_URL}stock.json", timeout=5).json() or {}
         _cache["data"]=d; _cache["time"]=time.time(); return d
     except: return _cache["data"]
 def get_stock(path):
@@ -75,26 +75,22 @@ def get_stock(path):
     return []
 def update_stock(path, rem):
     try:
-        requests.put(f"{FIREBASE_URL}stock/{safe_key(path)}.json", json=rem, timeout=10); _cache["time"]=0
+        requests.put(f"{FIREBASE_URL}stock/{safe_key(path)}.json", json=rem, timeout=5); _cache["time"]=0
     except: pass
 def get_user_data(uid):
     try:
-        d = requests.get(f"{FIREBASE_URL}users/{uid}.json", timeout=10).json()
+        d = requests.get(f"{FIREBASE_URL}users/{uid}.json", timeout=3).json()
         if not d: return 0.0,0,"en"
         return float(d.get("balance",0.0)), int(d.get("total_buy",0)), d.get("language","en")
     except: return 0.0,0,"en"
 def get_user(msg):
     uid=msg.from_user.id
     try:
-        url=f"{FIREBASE_URL}users/{uid}.json"; d=requests.get(url, timeout=10).json()
+        url=f"{FIREBASE_URL}users/{uid}.json"; d=requests.get(url, timeout=5).json()
         if not d:
-            requests.put(url, json={"user_id":uid,"first_name":msg.from_user.first_name or "U","username":msg.from_user.username or "","balance":0.0,"total_buy":0,"language":"en"}, timeout=10); return 0.0,0,"en"
+            requests.put(url, json={"user_id":uid,"first_name":msg.from_user.first_name or "U","username":msg.from_user.username or "","balance":0.0,"total_buy":0,"language":"en"}, timeout=5); return 0.0,0,"en"
         return float(d.get("balance",0.0)), int(d.get("total_buy",0)), d.get("language","en")
     except: return 0.0,0,"en"
-def check_sub(uid):
-    try:
-        m=bot.get_chat_member(CHANNEL_USERNAME, uid); return m.status in ['creator','administrator','member']
-    except: return True
 def main_menu(lang):
     mk=ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     mk.add(KeyboardButton("Telegram Buy Now"), KeyboardButton("Profile"), KeyboardButton("Deposit"), KeyboardButton("Support"), KeyboardButton("Language"))
@@ -107,8 +103,7 @@ def dep_menu():
     mk=InlineKeyboardMarkup(); mk.add(InlineKeyboardButton("Method 1 UID", callback_data="dep_bin"), InlineKeyboardButton("Method 2 TRC20", callback_data="dep_tron")); return mk
 def safe_edit(call, text, markup=None):
     try: bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="HTML")
-    except Exception as e:
-        print("edit fail:", e)
+    except:
         try: bot.send_message(call.message.chat.id, text, reply_markup=markup, parse_mode="HTML")
         except: pass
 
@@ -169,8 +164,8 @@ def all_text(m):
             if bal<total:
                 bot.send_message(m.chat.id, tr["no_bal"].format(price=total, balance=bal), reply_markup=dep_menu()); user_states.pop(uid,None); return
             bought=stock[:qty]; update_stock(st["panel"], stock[qty:])
-            nb=bal-total; requests.put(f"{FIREBASE_URL}users/{uid}/balance.json", json=nb, timeout=10)
-            _,cur,_=get_user_data(uid); requests.put(f"{FIREBASE_URL}users/{uid}/total_buy.json", json=cur+1, timeout=10)
+            nb=bal-total; requests.put(f"{FIREBASE_URL}users/{uid}/balance.json", json=nb, timeout=5)
+            _,cur,_=get_user_data(uid); requests.put(f"{FIREBASE_URL}users/{uid}/total_buy.json", json=cur+1, timeout=5)
             user_states.pop(uid,None)
             prod="\n".join([f"<code>{x}</code>" for x in bought])
             bot.send_message(m.chat.id, tr["bought"].format(panel=st["panel"], products=prod), parse_mode="HTML")
@@ -195,14 +190,13 @@ def ALL_CALLBACKS(call):
     data=call.data or ""
     uid=call.from_user.id
     _,_,lang=get_user_data(uid); tr=t(lang)
-    print(f"CALLBACK: {data} from {uid}")
     try:
         if data=="back_panels":
             safe_edit(call, tr["tg_prompt"], panel_menu()); return
         if data=="back_dep":
             safe_edit(call, tr["dep_main"], dep_menu()); return
         if data.startswith("lang_"):
-            lg=data.split("_")[1]; requests.put(f"{FIREBASE_URL}users/{uid}/language.json", json=lg, timeout=10)
+            lg=data.split("_")[1]; requests.put(f"{FIREBASE_URL}users/{uid}/language.json", json=lg, timeout=5)
             try: bot.delete_message(call.message.chat.id, call.message.message_id)
             except: pass
             bot.send_message(call.message.chat.id, t(lg)["lang_ok"], reply_markup=main_menu(lg)); return
@@ -239,7 +233,7 @@ def ALL_CALLBACKS(call):
         if data.startswith("depapprove|") or data.startswith("depreject|"):
             p=data.split("|"); tid=int(p[1]); _,_,tl=get_user_data(tid); tt=t(tl)
             if p[0]=="depapprove":
-                amt=float(p[2]); oid=p[3]; cur,_,_=get_user_data(tid); nb=cur+amt; requests.put(f"{FIREBASE_URL}users/{tid}/balance.json", json=nb, timeout=10)
+                amt=float(p[2]); oid=p[3]; cur,_,_=get_user_data(tid); nb=cur+amt; requests.put(f"{FIREBASE_URL}users/{tid}/balance.json", json=nb, timeout=5)
                 bot.edit_message_text(f"Approved {amt:.2f} for {tid} | {oid}", call.message.chat.id, call.message.message_id)
                 try: bot.send_message(tid, tt["dep_ok"].format(amount=amt, balance=nb))
                 except: pass
@@ -250,8 +244,6 @@ def ALL_CALLBACKS(call):
             return
     except Exception as e:
         print("CALLBACK ERROR:", e); traceback.print_exc()
-        try: bot.send_message(call.message.chat.id, f"Error: {e}")
-        except: pass
 
 def init_db():
     c=sqlite3.connect("auto_payments.db"); c.execute("CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, trx_id TEXT UNIQUE, amount REAL, sender TEXT)"); c.commit(); c.close()
