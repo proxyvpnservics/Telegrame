@@ -13,7 +13,8 @@ PANEL_PRICES = {"Panel 1": 1.0, "Panel 2": 1.2, "Panel 3": 2.1, "Panel 4": 1.5}
 P1 = {"Colombia":0.5,"India":0.55,"Bangladesh":0.55,"United States":0.55,"Indonesia":0.6,"Chile":0.65,"Kenya":0.65,"Myanmar":0.65,"Angola":0.68,"Afghanistan":0.7,"Zimbabwe":0.7,"Sudan":0.7,"Cameroon":0.7,"Madagascar":0.7,"Tanzania":0.6,"Algeria":0.75,"Jamaica":0.75,"Sri Lanka":0.8,"Eswatini":0.8,"Burkina Faso":0.8}
 P2 = {"Myanmar":0.35,"Colombia":0.55,"Uganda":0.55,"Togo":0.55,"Sudan":0.58,"Zimbabwe":0.6,"Nigeria":0.6,"Congo, The Democratic":0.6,"Sierra Leone":0.6,"Madagascar":0.6,"Angola":0.65,"Niger":0.65,"Pakistan":0.65,"Zambia":0.65,"India":0.65,"Chile":0.65,"Afghanistan":0.65,"Ghana":0.65,"Cuba":0.7,"Thailand":0.7}
 P3 = {"Nigeria":0.5}
-PANEL_MAP = {"1": P1, "2": P2, "3": P3}
+P4 = {"United States": 1.0, "Canada": 1.1} # প্যানেল ৪ এর জন্য কান্ট্রি ম্যাপিং যোগ করা হয়েছে
+PANEL_MAP = {"1": P1, "2": P2, "3": P3, "4": P4}
 
 T_EN = {
  "welcome":"Welcome {name}!\n\nPlease select from menu:",
@@ -55,7 +56,6 @@ app = Flask(__name__)
 user_states = {}
 db_lock = threading.Lock()
 
-# ---------- NO FIREBASE - LOCAL SQLITE ONLY ----------
 def db():
     c = sqlite3.connect("bot.db", check_same_thread=False)
     c.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, first_name TEXT, username TEXT, balance REAL DEFAULT 0, total_buy INTEGER DEFAULT 0, language TEXT DEFAULT 'en')")
@@ -104,7 +104,7 @@ def set_balance(uid, nb):
         c = db(); c.execute("UPDATE users SET balance=? WHERE user_id=?", (nb, uid)); c.commit(); c.close()
 
 def add_balance(uid, amt):
-    bal, tot, lang = get_user_data(uid)
+    bal, _, _ = get_user_data(uid)
     set_balance(uid, bal + amt)
     return bal + amt
 
@@ -120,12 +120,15 @@ def main_menu(lang):
     mk = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     mk.add(KeyboardButton("Telegram Buy Now"), KeyboardButton("Profile"), KeyboardButton("Deposit"), KeyboardButton("Support"), KeyboardButton("Language"))
     return mk
+
 def panel_menu():
     mk = InlineKeyboardMarkup(row_width=2)
     mk.add(InlineKeyboardButton("Panel 1", callback_data="p1"), InlineKeyboardButton("Panel 2", callback_data="p2"), InlineKeyboardButton("Panel 3", callback_data="p3"), InlineKeyboardButton("Panel 4", callback_data="p4"))
     return mk
+
 def dep_menu():
     mk = InlineKeyboardMarkup(); mk.add(InlineKeyboardButton("Method 1 UID", callback_data="dep_bin"), InlineKeyboardButton("Method 2 TRC20", callback_data="dep_tron")); return mk
+
 def safe_edit(call, text, markup=None):
     try: bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="HTML")
     except:
@@ -134,33 +137,33 @@ def safe_edit(call, text, markup=None):
 
 @bot.message_handler(commands=["start"])
 def start_h(m):
-    _,_,lang = get_user(m); user_states.pop(m.from_user.id, None)
+    _, _, lang = get_user(m); user_states.pop(m.from_user.id, None)
     bot.send_message(m.chat.id, t(lang)["welcome"].format(name=m.from_user.first_name), reply_markup=main_menu(lang))
 
 @bot.message_handler(func=lambda m: m.text=="Telegram Buy Now")
 def buy_h(m):
-    _,_,lang = get_user_data(m.from_user.id)
+    _, _, lang = get_user_data(m.from_user.id)
     bot.send_message(m.chat.id, t(lang)["tg_prompt"], reply_markup=panel_menu())
 
 @bot.message_handler(func=lambda m: m.text=="Deposit")
 def dep_h(m):
-    _,_,lang = get_user_data(m.from_user.id)
+    _, _, lang = get_user_data(m.from_user.id)
     bot.send_message(m.chat.id, t(lang)["dep_main"], reply_markup=dep_menu())
 
 @bot.message_handler(func=lambda m: m.text=="Profile")
 def prof_h(m):
-    bal,tot,lang = get_user_data(m.from_user.id)
+    bal, tot, lang = get_user_data(m.from_user.id)
     bot.send_message(m.chat.id, t(lang)["profile"].format(uid=m.from_user.id, name=m.from_user.first_name, balance=bal, total=tot))
 
 @bot.message_handler(func=lambda m: m.text=="Support")
 def sup_h(m):
-    _,_,lang = get_user_data(m.from_user.id)
+    _, _, lang = get_user_data(m.from_user.id)
     mk = InlineKeyboardMarkup(); mk.add(InlineKeyboardButton("Contact Support", url="https://t.me/GV_gmail_07"))
     bot.send_message(m.chat.id, t(lang)["support"], reply_markup=mk)
 
 @bot.message_handler(func=lambda m: m.text=="Language")
 def lang_h(m):
-    _,_,lang = get_user_data(m.from_user.id)
+    _, _, lang = get_user_data(m.from_user.id)
     mk = InlineKeyboardMarkup(); mk.add(InlineKeyboardButton("English", callback_data="lang_en"), InlineKeyboardButton("Chinese", callback_data="lang_zh"))
     bot.send_message(m.chat.id, t(lang)["select_lang"], reply_markup=mk)
 
@@ -168,7 +171,7 @@ def lang_h(m):
 def addstock(m):
     if m.from_user.id != ADMIN_ID: bot.reply_to(m, "No permission"); return
     try:
-        _,content = m.text.split(maxsplit=1); tp,raw = content.split("|",1)
+        _, content = m.text.split(maxsplit=1); tp, raw = content.split("|", 1)
         new = [x.strip() for x in raw.split("\n") if x.strip()]
         sl = get_stock(tp.strip()); sl.extend(new); update_stock(tp.strip(), sl)
         bot.reply_to(m, f"Added {len(new)} to {tp.strip()} Total {len(sl)}")
@@ -187,19 +190,19 @@ def addbal(m):
 def all_text(m):
     uid = m.from_user.id; st = user_states.get(uid, {}); act = st.get("action")
     if not act: return
-    _,_,lang = get_user_data(uid); tr = t(lang)
+    _, _, lang = get_user_data(uid); tr = t(lang)
     if act == "buy_qty":
         try:
             qty = int(m.text.strip())
             if qty <= 0: raise ValueError
             stock = get_stock(st["panel"])
             if qty > len(stock): bot.send_message(m.chat.id, tr["no_stock"].format(stock=len(stock))); return
-            total = qty * st["price"]; bal,_,_ = get_user_data(uid)
+            total = qty * st["price"]; bal, _, _ = get_user_data(uid)
             if bal < total:
-                bot.send_message(m.chat.id, tr["no_bal"].format(price=total, balance=bal), reply_markup=dep_menu()); user_states.pop(uid,None); return
+                bot.send_message(m.chat.id, tr["no_bal"].format(price=total, balance=bal), reply_markup=dep_menu()); user_states.pop(uid, None); return
             bought = stock[:qty]; update_stock(st["panel"], stock[qty:])
             nb = bal - total; set_balance(uid, nb); inc_total_buy(uid)
-            user_states.pop(uid,None)
+            user_states.pop(uid, None)
             prod = "\n".join([f"<code>{x}</code>" for x in bought])
             bot.send_message(m.chat.id, tr["bought"].format(panel=st["panel"], products=prod), parse_mode="HTML")
             bot.send_message(m.chat.id, tr["buy_ok"].format(qty=qty, cost=total, new_bal=nb), reply_markup=main_menu(lang))
@@ -211,7 +214,7 @@ def all_text(m):
             st["amount"] = amt; st["action"] = "dep_oid"; bot.send_message(m.chat.id, tr["dep_step2"])
         except: bot.send_message(m.chat.id, tr["invalid_amt"])
     elif act == "dep_oid":
-        st2 = user_states.pop(uid, {}); amt = st2.get("amount",0.0); oid = m.text.strip()
+        st2 = user_states.pop(uid, {}); amt = st2.get("amount", 0.0); oid = m.text.strip()
         bot.send_message(m.chat.id, tr["dep_pending"], reply_markup=main_menu(lang))
         mk = InlineKeyboardMarkup(); mk.row(InlineKeyboardButton("Approve", callback_data=f"depapprove|{uid}|{amt:.2f}|{oid}"), InlineKeyboardButton("Reject", callback_data=f"depreject|{uid}|{oid}"))
         bot.send_message(ADMIN_ID, f"New Deposit!\nUser {m.from_user.first_name} ({uid})\nMethod {st2.get('method')}\nAmount {amt:.2f}\nTrx {oid}", reply_markup=mk, parse_mode="HTML")
@@ -222,7 +225,7 @@ def ALL_CALLBACKS(call):
     except: pass
     data = call.data or ""
     uid = call.from_user.id
-    _,_,lang = get_user_data(uid); tr = t(lang)
+    _, _, lang = get_user_data(uid); tr = t(lang)
     try:
         if data == "back_panels":
             safe_edit(call, tr["tg_prompt"], panel_menu()); return
@@ -233,8 +236,10 @@ def ALL_CALLBACKS(call):
             try: bot.delete_message(call.message.chat.id, call.message.message_id)
             except: pass
             bot.send_message(call.message.chat.id, t(lg)["lang_ok"], reply_markup=main_menu(lg)); return
-        if data in ["p1","p2","p3","p4"]:
-            num = data[1]; pname = f"Panel {num}"; bal,_,_ = get_user_data(uid)
+        
+        # প্যানেল হ্যান্ডলিং ঠিক করা হলো যাতে প্রতিটি প্যানেল তার কান্ট্রি লিস্ট দেখায়
+        if data in ["p1", "p2", "p3", "p4"]:
+            num = data[1]; pname = f"Panel {num}"
             if num in PANEL_MAP:
                 countries = list(PANEL_MAP[num].keys()); mk = InlineKeyboardMarkup(row_width=2)
                 for idx, cname in enumerate(countries):
@@ -242,29 +247,35 @@ def ALL_CALLBACKS(call):
                     mk.add(InlineKeyboardButton(f"{cname} [{cnt}]", callback_data=f"c{num}:{idx}"))
                 mk.add(InlineKeyboardButton(tr["back_panels"], callback_data="back_panels"))
                 safe_edit(call, tr["panel_country"].format(panel=pname), mk); return
-            else:
-                price = PANEL_PRICES[pname]; stock = get_stock(pname)
-                if not stock:
-                    mk = InlineKeyboardMarkup(); mk.add(InlineKeyboardButton(tr["back_panels"], callback_data="back_panels")); safe_edit(call, tr["stock_out"], mk); return
-                if bal < price:
-                    mk = InlineKeyboardMarkup(); mk.add(InlineKeyboardButton("Method 1 UID", callback_data="dep_bin"), InlineKeyboardButton("Method 2 TRC20", callback_data="dep_tron")); mk.add(InlineKeyboardButton(tr["back_panels"], callback_data="back_panels")); safe_edit(call, tr["no_bal"].format(price=price, balance=bal), mk); return
-                user_states[uid] = {"action":"buy_qty","panel":pname,"price":price}
-                mk = InlineKeyboardMarkup(); mk.add(InlineKeyboardButton(tr["back_panels"], callback_data="back_panels")); safe_edit(call, tr["ask_qty"].format(panel=pname, stock=len(stock), price=price, balance=bal), mk); return
+        
         if data.startswith("c") and ":" in data:
-            try: num = data[1]; idx = int(data.split(":")[1]); pname = f"Panel {num}"; countries = list(PANEL_MAP[num].keys()); cname = countries[idx]; price = PANEL_MAP[num][cname]
-            except: return
-            bal,_,_ = get_user_data(uid); path = f"{pname}/{cname}"; stock = get_stock(path)
+            try: 
+                num = data[1]; idx = int(data.split(":")[1]); pname = f"Panel {num}"
+                countries = list(PANEL_MAP[num].keys()); cname = countries[idx]
+                price = PANEL_MAP[num][cname]
+            except Exception as e:
+                print("Country parse error:", e); return
+            
+            bal, _, _ = get_user_data(uid); path = f"{pname}/{cname}"; stock = get_stock(path)
             mk_back = InlineKeyboardMarkup(); mk_back.add(InlineKeyboardButton(f"{tr['back']} {pname}", callback_data=f"p{num}"))
-            if not stock: safe_edit(call, f"{cname} ({pname})\n\n"+tr["stock_out"], mk_back); return
+            
+            if not stock: 
+                safe_edit(call, f"{cname} ({pname})\n\n" + tr["stock_out"], mk_back); return
             if bal < price:
-                pay = InlineKeyboardMarkup(); pay.add(InlineKeyboardButton("Method 1 UID", callback_data="dep_bin"), InlineKeyboardButton("Method 2 TRC20", callback_data="dep_tron")); pay.add(InlineKeyboardButton(f"{tr['back']} {pname}", callback_data=f"p{num}")); safe_edit(call, f"{cname}\nPrice {price}\n\n"+tr["no_bal"].format(price=price, balance=bal), pay); return
-            user_states[uid] = {"action":"buy_qty","panel":path,"price":price}; safe_edit(call, tr["ask_qty"].format(panel=f"{pname} / {cname}", stock=len(stock), price=price, balance=bal), mk_back); return
-        if data in ["dep_bin","dep_tron"]:
-            method = "Method 1 UID" if data=="dep_bin" else "Method 2 TRC20"; addr = UID_1 if data=="dep_bin" else ADDR_2
-            user_states[uid] = {"action":"dep_amt","method":method}
-            mk = InlineKeyboardMarkup(); mk.add(InlineKeyboardButton(tr["back"], callback_data="back_dep")); safe_edit(call, tr["dep_step1"].format(method=method, address=addr), mk); return
+                pay = InlineKeyboardMarkup(); pay.add(InlineKeyboardButton("Method 1 UID", callback_data="dep_bin"), InlineKeyboardButton("Method 2 TRC20", callback_data="dep_tron")); pay.add(InlineKeyboardButton(f"{tr['back']} {pname}", callback_data=f"p{num}"))
+                safe_edit(call, f"{cname}\nPrice {price}\n\n" + tr["no_bal"].format(price=price, balance=bal), pay); return
+            
+            user_states[uid] = {"action": "buy_qty", "panel": path, "price": price}
+            safe_edit(call, tr["ask_qty"].format(panel=f"{pname} / {cname}", stock=len(stock), price=price, balance=bal), mk_back); return
+
+        if data in ["dep_bin", "dep_tron"]:
+            method = "Method 1 UID" if data == "dep_bin" else "Method 2 TRC20"; addr = UID_1 if data == "dep_bin" else ADDR_2
+            user_states[uid] = {"action": "dep_amt", "method": method}
+            mk = InlineKeyboardMarkup(); mk.add(InlineKeyboardButton(tr["back"], callback_data="back_dep"))
+            safe_edit(call, tr["dep_step1"].format(method=method, address=addr), mk); return
+
         if data.startswith("depapprove|") or data.startswith("depreject|"):
-            p = data.split("|"); tid = int(p[1]); _,_,tl = get_user_data(tid); tt = t(tl)
+            p = data.split("|"); tid = int(p[1]); _, _, tl = get_user_data(tid); tt = t(tl)
             if p[0] == "depapprove":
                 amt = float(p[2]); oid = p[3]; nb = add_balance(tid, amt)
                 bot.edit_message_text(f"Approved {amt:.2f} for {tid} | {oid}", call.message.chat.id, call.message.message_id)
@@ -281,25 +292,26 @@ def ALL_CALLBACKS(call):
 @app.route("/webhook/payment", methods=["POST"])
 def pay():
     d = request.json
-    if not d or not d.get("trx_id"): return jsonify({"status":"error"}),400
+    if not d or not d.get("trx_id"): return jsonify({"status": "error"}), 400
     try:
         with db_lock:
-            c = db(); c.execute("INSERT INTO transactions (trx_id, amount, sender) VALUES (?,?,?)", (d["trx_id"], float(d["amount"]), d.get("sender","")) ); c.commit(); c.close(); return jsonify({"status":"success"})
-    except: return jsonify({"status":"error","message":"dup"}),400
+            c = db(); c.execute("INSERT INTO transactions (trx_id, amount, sender) VALUES (?,?,?)", (d["trx_id"], float(d["amount"]), d.get("sender", ""))); c.commit(); c.close(); return jsonify({"status": "success"})
+    except: return jsonify({"status": "error", "message": "dup"}), 400
 
 class H(BaseHTTPRequestHandler):
     def do_GET(self): self.send_response(200); self.end_headers(); self.wfile.write(b"Alive")
     def log_message(self, *a): return
-def run_server(): HTTPServer(("0.0.0.0", int(os.environ.get("PORT",8080))), H).serve_forever()
 
-if __name__=="__main__":
+def run_server(): HTTPServer(("0.0.0.0", int(os.environ.get("PORT", 8080))), H).serve_forever()
+
+if __name__ == "__main__":
     db().close()
     threading.Thread(target=run_server, daemon=True).start()
     print("Bot starting... NO FIREBASE, SQLITE ONLY")
     try: bot.remove_webhook(drop_pending_updates=True); time.sleep(1)
     except Exception as e: print(e)
-    try: bot.set_my_commands([BotCommand("start","Re-start")])
+    try: bot.set_my_commands([BotCommand("start", "Re-start")])
     except: pass
-    while True:
+    while type(True) == bool:
         try: bot.infinity_polling(skip_pending=True, timeout=20, long_polling_timeout=20)
         except Exception as e: print("Polling:", e); time.sleep(5)
