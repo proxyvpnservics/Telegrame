@@ -17,8 +17,8 @@ bot = telebot.TeleBot(TOKEN, threaded=False)
 # Firebase Database URL
 FIREBASE_URL = "https://pranto-7b42c-default-rtdb.firebaseio.com"
 
-# Support Username
-support_admin_username = "@proxyvpnservice17"
+# Support Username (Updated)
+support_admin_username = "@LSY0088"
 
 # Admin ID List
 ADMIN_IDS = [8138758919]
@@ -115,7 +115,7 @@ def is_admin(user_id):
 
 # Country Database
 DEFAULT_DATABASE = {
-    "support_admin": "@proxyvpnservice17",
+    "support_admin": "@LSY0088",
     "product_inventory": {
         "Countries": {
             "type": "countries",
@@ -165,7 +165,7 @@ product_inventory = DEFAULT_DATABASE["product_inventory"]
 
 LANG = {
     "en": {
-        "welcome": "📍 Main Menu\n👋 Hello {user_name}!\n\nWelcome to Telegram Bot!\n\nMain Features:\n• User Center - Manage your account\n• Products - Browse and buy products\n• TRX & Energy - TRX and energy trading\n• Recharge - Multiple payment methods\n• Support: @TG_Logs01 - 24/7 online service\n• Language - Language settings\n\nTips:\nClick the buttons below to access features!",
+        "welcome": "📍 Main Menu\n👋 Hello {user_name}!\n\nWelcome to Telegram Bot!\n\nMain Features:\n• User Center - Manage your account\n• Products - Browse and buy products\n• TRX & Energy - TRX and energy trading\n• Recharge - Multiple payment methods\n• Support: @LSY0088 - 24/7 online service\n• Language - Language settings\n\nTips:\nClick the buttons below to access features!",
         "products": "📁 Select a country:",
         "account": "◆ USER CENTER / ACCOUNT\n────────────────────────\nUser ID: {user_id}\nUsername: {username}\nBalance: ${balance:.2f}\nPurchased: {purchased_total}\n\n👇 Select a country from the list below:",
         "deposit": "Select amount (USDT):",
@@ -200,7 +200,7 @@ LANG = {
         "txid_used": "❌ This Order ID / TxID has already been used! Each ID can only be used once for a deposit."
     },
     "zh": {
-        "welcome": "📍 主菜单\n👋 你好 {user_name}！\n\n欢迎使用电报机器人！\n\n主要功能：\n• 用户中心 - 管理您的账户\n• 产品中心 - 浏览并购买产品\n• TRX与能量 - TRX及能量交易\n• 账户充值 - 多种支付方式\n• 客服支持：@TG_Logs01 - 7/24在线服务\n• 语言设置 - 切换语言选项\n\n提示：\n点击下方按钮访问各项功能！",
+        "welcome": "📍 主菜单\n👋 你好 {user_name}！\n\n欢迎使用电报机器人！\n\n主要功能：\n• 用户中心 - 管理您的账户\n• 产品中心 - 浏览并购买产品\n• TRX与能量 - TRX及能量交易\n• 账户充值 - 多种支付方式\n• 客服支持：@LSY0088 - 7/24在线服务\n• 语言设置 - 切换语言选项\n\n提示：\n点击下方按钮访问各项功能！",
         "products": "📁 选择国家：",
         "account": "◆ 用户中心 / 账户信息\n────────────────────────\n用户 ID: {user_id}\n用户名: {username}\n余额: ${balance:.2f}\n已购总额: {purchased_total}\n\n👇 从下方列表选择国家：",
         "deposit": "请选择充值金额 (USDT)：",
@@ -523,7 +523,7 @@ def handle_all_messages(message):
             "order_id": order_id
         }
 
-        admin_id = ADMIN_IDS[0] if ADMIN_IDS else 9038799543
+        admin_id = ADMIN_IDS[0] if ADMIN_IDS else 8138758919
         user_name = message.from_user.first_name or "N/A"
         username = f"@{message.from_user.username}" if message.from_user.username else "N/A"
         
@@ -1353,7 +1353,7 @@ def handle_inline_clicks(call):
             send_val = f"{calculated_val:.3f} USDT"
             credit_val = f"${current_amount:.2f}"
             currency_type = "USDT · TRC20"
-            wallet_address = "TLciFN9Z7DGSsK6eHNP1WGHQxLWN29o2n7"
+            wallet_address = "TPgp911fhwLoK2cKHMvV5oRzFX5hc9NCY8" # Updated TRC20
             network_name = "Tron (TRC20)"
             net_code = "tron"
         else:
@@ -1361,7 +1361,7 @@ def handle_inline_clicks(call):
             send_val = f"{calculated_val:.3f} USDT"
             credit_val = f"${current_amount:.2f}"
             currency_type = "USDT · BEP20"
-            wallet_address = "0x8fd14bf35fc69d0354b5202c936e4ddce33733f9"
+            wallet_address = "0x6ea90338aa1f55b4cbd6326c781549df59e416d7" # Updated BEP20
             network_name = "BNB Smart Chain (BEP20)"
             net_code = "bsc"
 
