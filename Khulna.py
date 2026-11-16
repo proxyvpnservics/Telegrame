@@ -1050,8 +1050,7 @@ def process_product_purchase(chat_id, user_id, item_key, qty):
                     chat_id, 
                     document=single_zip_buffer, 
                     visible_file_name=f"{item_key}_{file_short_name}.zip", 
-                    caption=f"{t['purchase_success']}\n\n📦 Item: {item_key}\n📁 File: {file_short_name}\n🔐 2FA & ZIP Password: `{tfa_code}`\n💵 Paid: ${price_per_unit:.2f}\n\n{t['balance_text']} ${user_balances[user_id]:.2f}",
-                    parse_mode="Markdown"
+                    caption=f"{t['purchase_success']}\n\n📦 Item: {item_key}\n📁 File: {file_short_name}\n🔐 2FA & ZIP Password: {tfa_code}\n💵 Paid: ${price_per_unit:.2f}\n\n{t['balance_text']} ${user_balances[user_id]:.2f}"
                 )
             elif len(accounts_list) > 0:
                 purchased_item = accounts_list.pop(0)
@@ -1068,8 +1067,8 @@ def process_product_purchase(chat_id, user_id, item_key, qty):
                     success_text = (
                         f"{t['purchase_success']}\n\n"
                         f"📦 Country: {item_key}\n"
-                        f"📱 Telegram Number: `{acc_num}`\n"
-                        f"🔐 2FA Code: `{acc_2fa}`\n"
+                        f"📱 Telegram Number: {acc_num}\n"
+                        f"🔐 2FA Code: {acc_2fa}\n"
                         f"💵 Paid: ${price_per_unit:.2f}\n\n"
                         f"{t['balance_text']} ${user_balances[user_id]:.2f}"
                     )
@@ -1077,7 +1076,7 @@ def process_product_purchase(chat_id, user_id, item_key, qty):
                     acc_info = purchased_item.get("info", "N/A")
                     acc_pass = purchased_item.get("password", "N/A")
                     acc_rec = purchased_item.get("recovery", "")
-                    rec_text = f"\n🛡️ Recovery: `{acc_rec}`" if acc_rec and acc_rec != "N/A" else ""
+                    rec_text = f"\n🛡️ Recovery: {acc_rec}" if acc_rec and acc_rec != "N/A" else ""
                     
                     purchase_text = f"Bought {item_key}: {acc_info} for ${price_per_unit:.2f}"
                     if user_id not in user_purchases:
@@ -1088,12 +1087,12 @@ def process_product_purchase(chat_id, user_id, item_key, qty):
                     success_text = (
                         f"{t['purchase_success']}\n\n"
                         f"📦 Product: {item_key}\n"
-                        f"📧 Username/Email: `{acc_info}`\n"
-                        f"🔑 Password: `{acc_pass}`{rec_text}\n"
+                        f"📧 Username/Email: {acc_info}\n"
+                        f"🔑 Password: {acc_pass}{rec_text}\n"
                         f"💵 Paid: ${price_per_unit:.2f}\n\n"
                         f"{t['balance_text']} ${user_balances[user_id]:.2f}"
                     )
-                bot.send_message(chat_id, success_text, parse_mode="Markdown")
+                bot.send_message(chat_id, success_text)
         except Exception as e:
             print(f"Error in delivering product: {e}")
             bot.send_message(chat_id, f"❌ Error delivering item: {str(e)}")
