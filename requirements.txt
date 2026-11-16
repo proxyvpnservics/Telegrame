@@ -1,4 +1,4 @@
 pyTelegramBotAPI
-‎pyzipper
-‎requests
-‎flask
+Flask
+requests
+pyzipper
