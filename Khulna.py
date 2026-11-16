@@ -16,8 +16,7 @@ from telebot.types import (
 )
 
 # ===== ENV CONFIG =====
-# এখানে আপনার Demo_Bot এর সঠিক Token দিন
-API_TOKEN = os.getenv("BOT_TOKEN", "8908618066:AAFYqlJ0fW4PJWjW-UqYpziXu6WyT7Gul00")
+API_TOKEN = os.getenv("BOT_TOKEN", "8908618066:AAHCcMP6YcGtSeOGlEpFW98CjljFPtwGfNw")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "8138758919"))
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "proxyvpnservice17")
 FIREBASE_URL = os.getenv(
