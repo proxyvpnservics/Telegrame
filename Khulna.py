@@ -16,10 +16,10 @@ from telebot.types import (
 )
 
 # ===== ENV CONFIG =====
+# এখানে আপনার Demo_Bot এর সঠিক Token দিন
 API_TOKEN = os.getenv("BOT_TOKEN", "8908618066:AAFYqlJ0fW4PJWjW-UqYpziXu6WyT7Gul00")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "8138758919"))
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "proxyvpnservice17")
-ADMIN_PASS = os.getenv("ADMIN_PASS", "")
 FIREBASE_URL = os.getenv(
     "FIREBASE_URL", "https://shopbotdb-default-rtdb.firebaseio.com/"
 )
@@ -306,8 +306,8 @@ def is_admin(o):
 
 def get_main_menu(message=None):
     m = ReplyKeyboardMarkup(resize_keyboard=True)
-    m.row(KeyboardButton("🛍️ Buy Product"))
-    m.row(KeyboardButton("👤 Profile"), KeyboardButton("💰 Deposit"))
+    m.row(KeyboardButton("🛍️ Products"))
+    m.row(KeyboardButton("👤 User Center"), KeyboardButton("💰 Deposit"))
     m.row(KeyboardButton("📦 My Orders"))
     if message and is_admin(message):
         m.row(KeyboardButton("⚙️ Admin Control"))
@@ -354,7 +354,7 @@ def set_bot_commands():
         print(e)
 
 
-# ---------- Basic & Profile (Updated Table Design) ----------
+# ---------- Basic & User Center (Table Design, No Country) ----------
 def send_welcome(message):
     get_user(message)
     user_states.pop(message.from_user.id, None)
@@ -403,7 +403,7 @@ def profile_handler(message):
 
     bot.send_message(
         message.chat.id,
-        "👤 <b>User Centre</b>",
+        "👤 <b>User Center</b>",
         reply_markup=m,
     )
 
@@ -422,11 +422,14 @@ def global_main_menu(message):
 
 MENU_MAP = {
     "🛍️ Buy Product": "buy",
+    "🛍️ Products": "buy",
     "👤 Profile": "profile",
+    "👤 User Center": "profile",
     "💰 Deposit": "deposit",
     "📦 My Orders": "orders",
     "⚙️ Admin Control": "admin",
     "🏠 Main Menu": "home",
+    "< Main Menu": "home",
 }
 
 
@@ -483,15 +486,20 @@ def deposit_methods(call):
         method = "Binance Pay"
         min_amt = 2.0
 
-    user_states[call.from_user.id] = {"action": "deposit_select_amt", "method": method, "min_amt": min_amt, "amount_val": 0.0}
-    
+    user_states[call.from_user.id] = {
+        "action": "deposit_select_amt",
+        "method": method,
+        "min_amt": min_amt,
+        "amount_val": 0.0,
+    }
+
     text = (
         f"💵 <b>Method: {method}</b>\n\n"
         f"Select an amount.\n"
         f"Currency: USDT\n"
         f"Minimum: {min_amt} USDT"
     )
-    
+
     m = InlineKeyboardMarkup(row_width=2)
     m.add(
         InlineKeyboardButton("💵 0.20", callback_data="dep_amt|0.20"),
@@ -501,7 +509,7 @@ def deposit_methods(call):
         InlineKeyboardButton("⬅️ Back", callback_data="dep_back"),
         InlineKeyboardButton("📝 Custom", callback_data="dep_custom"),
     )
-    
+
     try:
         bot.edit_message_text(
             text,
@@ -536,8 +544,12 @@ def deposit_custom_callback(call):
     min_amt = st.get("min_amt", 2.0)
     if uid in user_states:
         user_states[uid]["action"] = "deposit_custom_input"
-    
-    msg = bot.send_message(call.message.chat.id, f"✍️ Enter custom USDT amount (Minimum {min_amt}):", reply_markup=cancel_markup())
+
+    msg = bot.send_message(
+        call.message.chat.id,
+        f"✍️ Enter custom USDT amount (Minimum {min_amt}):",
+        reply_markup=cancel_markup(),
+    )
     bot.register_next_step_handler(msg, process_deposit_custom_amount)
 
 
@@ -548,9 +560,14 @@ def deposit_amount_selected(call):
     st = user_states.get(uid, {})
     method = st.get("method", "Binance Pay")
     min_amt = st.get("min_amt", 2.0)
-    
-    user_states[uid] = {"action": "deposit_select_amt", "method": method, "min_amt": min_amt, "amount_val": amt}
-    
+
+    user_states[uid] = {
+        "action": "deposit_select_amt",
+        "method": method,
+        "min_amt": min_amt,
+        "amount_val": amt,
+    }
+
     text = (
         f"💵 <b>Method: {method}</b>\n\n"
         f"Select an amount.\n"
@@ -558,7 +575,7 @@ def deposit_amount_selected(call):
         f"Minimum: {min_amt} USDT\n\n"
         f"Selected amount: <b>{amt:g} USDT</b>"
     )
-    
+
     m = InlineKeyboardMarkup(row_width=2)
     m.add(
         InlineKeyboardButton("💵 0.20", callback_data="dep_amt|0.20"),
@@ -569,7 +586,7 @@ def deposit_amount_selected(call):
         InlineKeyboardButton("📝 Custom", callback_data="dep_custom"),
         InlineKeyboardButton("➡️ Next", callback_data="dep_next"),
     )
-    
+
     try:
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=m)
     except Exception:
@@ -586,9 +603,14 @@ def process_deposit_custom_amount(message):
         st = user_states.get(uid, {})
         min_amt = st.get("min_amt", 2.0)
         method = st.get("method", "Binance Pay")
-        
-        user_states[uid] = {"action": "deposit_select_amt", "method": method, "min_amt": min_amt, "amount_val": amt}
-        
+
+        user_states[uid] = {
+            "action": "deposit_select_amt",
+            "method": method,
+            "min_amt": min_amt,
+            "amount_val": amt,
+        }
+
         text = (
             f"💵 <b>Method: {method}</b>\n\n"
             f"Select an amount.\n"
@@ -596,7 +618,7 @@ def process_deposit_custom_amount(message):
             f"Minimum: {min_amt} USDT\n\n"
             f"Selected amount: <b>{amt:g} USDT</b>"
         )
-        
+
         m = InlineKeyboardMarkup(row_width=2)
         m.add(
             InlineKeyboardButton("💵 0.20", callback_data="dep_amt|0.20"),
@@ -607,7 +629,7 @@ def process_deposit_custom_amount(message):
             InlineKeyboardButton("📝 Custom", callback_data="dep_custom"),
             InlineKeyboardButton("➡️ Next", callback_data="dep_next"),
         )
-        
+
         bot.send_message(message.chat.id, text, reply_markup=m)
     except ValueError:
         st = user_states.get(uid, {})
@@ -623,24 +645,24 @@ def deposit_next_callback(call):
     amt = st.get("amount_val", 0.0)
     min_amt = st.get("min_amt", 2.0)
     method = st.get("method", "Binance Pay")
-    
+
     if amt < min_amt:
         bot.answer_callback_query(call.id, f"Please select at least {min_amt} USDT!", show_alert=True)
         return
-        
+
     user_states[uid]["action"] = "deposit_trx"
-    
+
     binance_id = os.getenv("BINANCE_ID", "1290480685")
     tron_address = os.getenv("TRON_ADDRESS", "TXxxxxxx...xxxxxx")
     bns_address = os.getenv("BNS_ADDRESS", "BNSxxxxx...xxxxx")
-    
+
     if method == "Binance Pay":
         info = f"{binance_id}"
     elif method == "Tron Network":
         info = f"{tron_address}"
     else:
         info = f"{bns_address}"
-        
+
     text = (
         f"💲 <b>Payment Details</b>\n\n"
         f"💲 Amount: <b>{amt:g} USDT</b>\n"
@@ -648,12 +670,12 @@ def deposit_next_callback(call):
         f"1. Send {amt:g} USDT via {method} to this address.\n\n"
         f"2. After payment, send the Transaction ID (TrxID) below."
     )
-    
+
     try:
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=None)
     except Exception:
         bot.send_message(call.message.chat.id, text, reply_markup=None)
-    
+
     bot.send_message(call.message.chat.id, "✍️ Now send your Transaction ID (TrxID) / Hash below:")
 
 
@@ -662,28 +684,28 @@ def deposit_text_flow(message):
     uid = message.from_user.id
     text = (message.text or "").strip()
     st = user_states.get(uid, {})
-    
+
     method = st.get("method", "Binance Pay")
     usdt_amt = st.get("amount_val", 0.0)
     trx = text
-    
+
     if is_trx_used(trx):
         bot.send_message(
             message.chat.id,
             f"⚠️ This Transaction ID/Hash ('{trx}') already used! Provide correct ID:",
-            reply_markup=cancel_markup()
+            reply_markup=cancel_markup(),
         )
         return
-        
+
     record_trx(trx, uid, usdt_amt, method)
     user_states.pop(uid, None)
-    
+
     bot.send_message(
         message.chat.id,
         "⏳ Your payment / deposit request is pending verification.",
         reply_markup=get_main_menu(message),
     )
-    
+
     am = InlineKeyboardMarkup()
     am.row(
         InlineKeyboardButton(
@@ -725,7 +747,7 @@ def admin_deposit_action(call):
         try:
             bot.send_message(
                 tid,
-                f"✅ Your deposit was verified!\n💰 {amt:g} USDT added.\n💵 Balance: {nb:.2f} USDT",
+                f"✅ Your deposit was verified!\n💰 {amt:g} USDT added.\n💵 Balance: ${nb:.2f}",
             )
         except Exception:
             pass
@@ -834,13 +856,18 @@ def admin_zip_menu(call):
         InlineKeyboardButton("📤 Upload Products ZIP", callback_data="adm_upload_zip_prompt"),
         InlineKeyboardButton("🔙 Back to Dashboard", callback_data="adm_back_dash"),
     )
-    bot.edit_message_text("📁 <b>ZIP File Management</b>\n\nManage products via ZIP:", call.message.chat.id, call.message.message_id, reply_markup=m)
+    bot.edit_message_text(
+        "📁 <b>ZIP File Management</b>\n\nManage products via ZIP:",
+        call.message.chat.id,
+        call.message.message_id,
+        reply_markup=m,
+    )
 
 
 @bot.callback_query_handler(func=lambda c: c.data == "adm_download_zip")
 def admin_download_zip(call):
     target_cats = ["telegram_protocol", "contact_free", "spam_limit", "global_session"]
-    
+
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for pid, p in PRODUCTS.items():
@@ -853,12 +880,12 @@ def admin_download_zip(call):
                     f"Unit: {p.get('unit')}"
                 )
                 zip_file.writestr(f"{p.get('cat')}_{pid}.txt", content)
-                
+
     zip_buffer.seek(0)
     bot.send_document(
         call.message.chat.id,
         (f"products_backup_{int(time.time())}.zip", zip_buffer.read()),
-        caption="📁 Here is the ZIP file containing products backup."
+        caption="📁 Here is the ZIP file containing products backup.",
     )
     bot.answer_callback_query(call.id, "ZIP downloaded successfully!")
 
@@ -866,7 +893,11 @@ def admin_download_zip(call):
 @bot.callback_query_handler(func=lambda c: c.data == "adm_upload_zip_prompt")
 def admin_upload_zip_prompt(call):
     user_states[call.from_user.id] = {"action": "waiting_for_zip"}
-    msg = bot.send_message(call.message.chat.id, "📤 Please send the `.zip` file containing product text files:", reply_markup=cancel_markup())
+    msg = bot.send_message(
+        call.message.chat.id,
+        "📤 Please send the `.zip` file containing product text files:",
+        reply_markup=cancel_markup(),
+    )
     bot.register_next_step_handler(msg, handle_uploaded_zip)
 
 
@@ -876,16 +907,16 @@ def handle_uploaded_zip(message):
         user_states.pop(uid, None)
         bot.send_message(message.chat.id, "Cancelled.", reply_markup=get_main_menu(message))
         return
-        
+
     if not message.document or not message.document.file_name.endswith(".zip"):
         msg = bot.send_message(message.chat.id, "❌ Please send a valid `.zip` file:")
         bot.register_next_step_handler(msg, handle_uploaded_zip)
         return
-        
+
     try:
         file_info = bot.get_file(message.document.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-        
+
         with zipfile.ZipFile(io.BytesIO(downloaded_file), "r") as z:
             count = 0
             for filename in z.namelist():
@@ -897,7 +928,7 @@ def handle_uploaded_zip(message):
                             if ":" in line:
                                 k, v = line.split(":", 1)
                                 data[k.strip().lower()] = v.strip()
-                                
+
                         cat = data.get("category", "telegram_protocol")
                         country = data.get("country", "Standard")
                         country_code = data.get("country_code", "")
@@ -905,33 +936,45 @@ def handle_uploaded_zip(message):
                             price = float(data.get("price", "1").replace("USDT", "").strip())
                         except ValueError:
                             price = 1.0
-                            
+
                         pid = f"{cat}_{int(time.time()*1000)}_{count}"
                         np = {
                             "cat": cat,
-                            "name": CATEGORIES.get(cat, 'Product'),
+                            "name": CATEGORIES.get(cat, "Product"),
                             "package": f"{country} ({country_code})" if country_code else country,
                             "country": country,
                             "country_code": country_code,
                             "price": price,
-                            "unit": "USDT"
+                            "unit": "USDT",
                         }
                         PRODUCTS[pid] = np
                         fb_put(f"products/{pid}", np)
                         count += 1
-                        
+
         user_states.pop(uid, None)
-        bot.send_message(message.chat.id, f"✅ Successfully imported {count} items from ZIP!", reply_markup=get_main_menu(message))
+        bot.send_message(
+            message.chat.id,
+            f"✅ Successfully imported {count} items from ZIP!",
+            reply_markup=get_main_menu(message),
+        )
     except Exception as e:
         user_states.pop(uid, None)
-        bot.send_message(message.chat.id, f"❌ Failed to process ZIP: {e}", reply_markup=get_main_menu(message))
+        bot.send_message(
+            message.chat.id,
+            f"❌ Failed to process ZIP: {e}",
+            reply_markup=get_main_menu(message),
+        )
 
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("adm_upload_stock|"))
 def admin_upload_stock_prompt(call):
     pid = call.data.split("|")[1]
     user_states[call.from_user.id] = {"action": "waiting_for_stock_file", "pid": pid}
-    msg = bot.send_message(call.message.chat.id, "📤 Please send a `.txt` or `.zip` file containing accounts/2FA details (one per line):", reply_markup=cancel_markup())
+    msg = bot.send_message(
+        call.message.chat.id,
+        "📤 Please send a `.txt` or `.zip` file containing accounts/2FA details (one per line):",
+        reply_markup=cancel_markup(),
+    )
     bot.register_next_step_handler(msg, process_stock_file_upload)
 
 
@@ -939,24 +982,24 @@ def process_stock_file_upload(message):
     uid = message.from_user.id
     st = user_states.get(uid, {})
     pid = st.get("pid")
-    
+
     if (message.text or "") in ["❌ Cancel", "/start"]:
         user_states.pop(uid, None)
         bot.send_message(message.chat.id, "Cancelled.", reply_markup=get_main_menu(message))
         return
-        
+
     if not message.document:
         msg = bot.send_message(message.chat.id, "❌ Please upload a valid file (.txt or .zip):")
         bot.register_next_step_handler(msg, process_stock_file_upload)
         return
-        
+
     try:
         file_info = bot.get_file(message.document.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-        
+
         new_stocks = []
         filename = message.document.file_name
-        
+
         if filename.endswith(".zip"):
             with zipfile.ZipFile(io.BytesIO(downloaded_file), "r") as z:
                 for sub_file in z.namelist():
@@ -971,24 +1014,28 @@ def process_stock_file_upload(message):
             for line in lines:
                 if line.strip():
                     new_stocks.append(line.strip())
-                    
+
         existing_stocks = fb_get(f"products/{pid}/stocks") or []
         if isinstance(existing_stocks, list):
             existing_stocks.extend(new_stocks)
         else:
             existing_stocks = new_stocks
-            
+
         fb_put(f"products/{pid}/stocks", existing_stocks)
         user_states.pop(uid, None)
-        
+
         bot.send_message(
-            message.chat.id, 
-            f"✅ Successfully added <b>{len(new_stocks)}</b> items to stock!\nTotal Stock: <b>{len(existing_stocks)}</b>", 
-            reply_markup=get_main_menu(message)
+            message.chat.id,
+            f"✅ Successfully added <b>{len(new_stocks)}</b> items to stock!\nTotal Stock: <b>{len(existing_stocks)}</b>",
+            reply_markup=get_main_menu(message),
         )
     except Exception as e:
         user_states.pop(uid, None)
-        bot.send_message(message.chat.id, f"❌ Error processing file: {e}", reply_markup=get_main_menu(message))
+        bot.send_message(
+            message.chat.id,
+            f"❌ Error processing file: {e}",
+            reply_markup=get_main_menu(message),
+        )
 
 
 @bot.callback_query_handler(func=lambda c: c.data == "adm_users_list")
@@ -1002,7 +1049,7 @@ def admin_users_list_handler(call):
         if isinstance(u, dict):
             m.add(
                 InlineKeyboardButton(
-                    f"👤 {u.get('first_name','User')} (@{u.get('username','No_Username')}) | 💰 {u.get('balance',0)} USDT",
+                    f"👤 {u.get('first_name','User')} (@{u.get('username','No_Username')}) | 💰 ${float(u.get('balance',0)):.2f}",
                     callback_data=f"adm_user_view|{uid_str}",
                 )
             )
@@ -1026,7 +1073,7 @@ def admin_view_single_user(call):
     if not u or not isinstance(u, dict):
         bot.answer_callback_query(call.id, "User not found!", show_alert=True)
         return
-    text = f"👤 <b>User Details</b>\n\n📛 <b>Name:</b> {u.get('first_name','Unknown')}\n🏷️ <b>Username:</b> @{u.get('username','No_Username')}\n🆔 <b>User ID:</b> <code>{uid_str}</code>\n💰 <b>Balance:</b> {float(u.get('balance',0)):g} USDT\n🛍️ <b>Total Purchases:</b> {int(u.get('total_buy',0))}"
+    text = f"👤 <b>User Details</b>\n\n📛 <b>Name:</b> {u.get('first_name','Unknown')}\n🏷️ <b>Username:</b> @{u.get('username','No_Username')}\n🆔 <b>User ID:</b> <code>{uid_str}</code>\n💰 <b>Balance:</b> ${float(u.get('balance',0)):.2f}\n🛍️ <b>Total Purchases:</b> {int(u.get('total_buy',0))}"
     m = InlineKeyboardMarkup(row_width=2)
     m.add(
         InlineKeyboardButton(
@@ -1051,7 +1098,7 @@ def admin_edit_user_balance_prompt(call):
 
 
 def process_admin_edit_balance(message, uid_str):
-    if (message.text or "") in ["❌ Cancel", "🏠 Main Menu"]:
+    if (message.text or "") in ["❌ Cancel", "🏠 Main Menu", "< Main Menu"]:
         bot.send_message(
             message.chat.id, "Cancelled.", reply_markup=get_main_menu(message)
         )
@@ -1061,12 +1108,12 @@ def process_admin_edit_balance(message, uid_str):
         if set_balance(uid_str, nb):
             bot.send_message(
                 message.chat.id,
-                f"✅ Updated user <code>{uid_str}</code> balance to <b>{nb:g} USDT</b>.",
+                f"✅ Updated user <code>{uid_str}</code> balance to <b>${nb:.2f}</b>.",
             )
             try:
                 bot.send_message(
                     int(uid_str),
-                    f"🔔 Your balance updated by admin.\n💰 Current Balance: <b>{nb:g} USDT</b>",
+                    f"🔔 Your balance updated by admin.\n💰 Current Balance: <b>${nb:.2f}</b>",
                 )
             except Exception:
                 pass
@@ -1108,7 +1155,7 @@ def admin_show_category_products(call):
     matched = {pid: p for pid, p in PRODUCTS.items() if p.get("cat") == cat}
     m = InlineKeyboardMarkup(row_width=1)
     for pid, p in matched.items():
-        country_info = f" [{p.get('country')} ({p.get('country_code')})]" if p.get('country') else ""
+        country_info = f" [{p.get('country')} ({p.get('country_code')})]" if p.get("country") else ""
         m.add(
             InlineKeyboardButton(
                 f"⚙️ {p.get('name')}{country_info} - {p.get('price')} USDT",
@@ -1167,7 +1214,7 @@ def admin_view_product_details(call):
     )
     m.add(
         InlineKeyboardButton("🗑️ Delete / Remove", callback_data=f"admpdel|{pid}"),
-        InlineKeyboardButton("🔙 Back", callback_data=f"adm_cat|{prod.get('cat')}")
+        InlineKeyboardButton("🔙 Back", callback_data=f"adm_cat|{prod.get('cat')}"),
     )
     bot.edit_message_text(
         text, call.message.chat.id, call.message.message_id, reply_markup=m
@@ -1197,21 +1244,21 @@ def admin_edit_product_prompt(call):
         bot.answer_callback_query(call.id, "Not found!", show_alert=True)
         return
     if field == "price":
-        msg = bot.send_message(call.message.chat.id, f"Enter new price in USDT:", reply_markup=cancel_markup())
+        msg = bot.send_message(call.message.chat.id, "Enter new price in USDT:", reply_markup=cancel_markup())
         bot.register_next_step_handler(msg, process_update_prod_field, pid, "price", float)
     elif field == "name":
-        msg = bot.send_message(call.message.chat.id, f"Enter new name:", reply_markup=cancel_markup())
+        msg = bot.send_message(call.message.chat.id, "Enter new name:", reply_markup=cancel_markup())
         bot.register_next_step_handler(msg, process_update_prod_field, pid, "name", str)
     elif field == "country":
-        msg = bot.send_message(call.message.chat.id, f"Enter Country name (e.g. Bangladesh):", reply_markup=cancel_markup())
+        msg = bot.send_message(call.message.chat.id, "Enter Country name (e.g. Bangladesh):", reply_markup=cancel_markup())
         bot.register_next_step_handler(msg, process_update_prod_field, pid, "country", str)
     elif field == "code":
-        msg = bot.send_message(call.message.chat.id, f"Enter Country Code (e.g. +880):", reply_markup=cancel_markup())
+        msg = bot.send_message(call.message.chat.id, "Enter Country Code (e.g. +880):", reply_markup=cancel_markup())
         bot.register_next_step_handler(msg, process_update_prod_field, pid, "country_code", str)
 
 
 def process_update_prod_field(message, pid, fk, vt):
-    if (message.text or "") in ["❌ Cancel", "🏠 Main Menu"]:
+    if (message.text or "") in ["❌ Cancel", "🏠 Main Menu", "< Main Menu"]:
         bot.send_message(message.chat.id, "Cancelled.", reply_markup=get_main_menu(message))
         return
     try:
@@ -1247,12 +1294,16 @@ def admin_add_product_step1(call):
 
 def start_add_product_flow(chat_id, cat_key):
     user_states[chat_id] = {"action": "adding_product", "cat": cat_key}
-    msg = bot.send_message(chat_id, f"🌍 Enter Country Name for <b>{CATEGORIES.get(cat_key)}</b>:", reply_markup=cancel_markup())
+    msg = bot.send_message(
+        chat_id,
+        f"🌍 Enter Country Name for <b>{CATEGORIES.get(cat_key)}</b>:",
+        reply_markup=cancel_markup(),
+    )
     bot.register_next_step_handler(msg, add_prod_step_country)
 
 
 def add_prod_step_country(message):
-    if (message.text or "") in ["❌ Cancel", "🏠 Main Menu"]:
+    if (message.text or "") in ["❌ Cancel", "🏠 Main Menu", "< Main Menu"]:
         bot.send_message(message.chat.id, "Cancelled.", reply_markup=get_main_menu(message))
         return
     user_states[message.chat.id]["country"] = message.text.strip()
@@ -1261,7 +1312,7 @@ def add_prod_step_country(message):
 
 
 def add_prod_step_code(message):
-    if (message.text or "") in ["❌ Cancel", "🏠 Main Menu"]:
+    if (message.text or "") in ["❌ Cancel", "🏠 Main Menu", "< Main Menu"]:
         bot.send_message(message.chat.id, "Cancelled.", reply_markup=get_main_menu(message))
         return
     user_states[message.chat.id]["country_code"] = message.text.strip()
@@ -1270,18 +1321,18 @@ def add_prod_step_code(message):
 
 
 def add_prod_step_price(message):
-    if (message.text or "") in ["❌ Cancel", "🏠 Main Menu"]:
+    if (message.text or "") in ["❌ Cancel", "🏠 Main Menu", "< Main Menu"]:
         bot.send_message(message.chat.id, "Cancelled.", reply_markup=get_main_menu(message))
         return
     try:
         user_states[message.chat.id]["price"] = float(message.text.strip())
         d = user_states.pop(message.chat.id, {})
         pid = f"{d.get('cat','telegram_protocol')}_{int(time.time()*1000)}"
-        country = d.get('country', 'Bangladesh')
-        country_code = d.get('country_code', '+880')
+        country = d.get("country", "Bangladesh")
+        country_code = d.get("country_code", "+880")
         np = {
             "cat": d.get("cat", "telegram_protocol"),
-            "name": CATEGORIES.get(d.get('cat'), 'Product'),
+            "name": CATEGORIES.get(d.get("cat"), "Product"),
             "package": f"{country} ({country_code})",
             "country": country,
             "country_code": country_code,
@@ -1300,7 +1351,7 @@ def add_prod_step_price(message):
         bot.register_next_step_handler(msg, add_prod_step_price)
 
 
-# ---------- Buy Product (User Centre - Country Removed from Display) ----------
+# ---------- Buy Product (User Centre - No Country Display) ----------
 def buy_product(message):
     bot.send_message(
         message.chat.id,
@@ -1403,31 +1454,34 @@ def deliver_stock_item_to_user(uid, pid, qty, oid, smid):
     stocks = fb_get(f"products/{pid}/stocks")
     if not stocks or not isinstance(stocks, list) or len(stocks) < int(qty):
         return False
-    
-    delivered_items = stocks[:int(qty)]
-    remaining_stocks = stocks[int(qty):]
+
+    delivered_items = stocks[: int(qty)]
+    remaining_stocks = stocks[int(qty) :]
     fb_put(f"products/{pid}/stocks", remaining_stocks)
-    
+
     code_text = "\n".join(delivered_items)
     update_order_status(oid, "delivered")
-    
+
     bal, _ = get_balance(uid)
     if smid:
         try:
             bot.delete_message(uid, smid)
         except Exception:
             pass
-            
+
     m = InlineKeyboardMarkup()
     m.add(InlineKeyboardButton("Reply to Admin", url=f"https://t.me/{ADMIN_USERNAME}"))
-    
+
     try:
         bot.send_message(
             uid,
-            f"✅ <b>Purchase Successful!</b>\n\n📦 Order: #{oid}\n🔢 Quantity: {qty:g} Pc\n💰 Balance: <b>{bal:g} USDT</b>\n\n🔑 <b>Your Account / 2FA Details :</b>\n<code>{code_text}</code>",
+            f"✅ <b>Purchase Successful!</b>\n\n📦 Order: #{oid}\n🔢 Quantity: {qty:g} Pc\n💰 Balance: <b>${bal:.2f}</b>\n\n🔑 <b>Your Account / 2FA Details :</b>\n<code>{code_text}</code>",
             reply_markup=m,
         )
-        bot.send_message(ADMIN_ID, f"✅ Order #{oid} automatically delivered {qty:g} items to user <code>{uid}</code> from stock!")
+        bot.send_message(
+            ADMIN_ID,
+            f"✅ Order #{oid} automatically delivered {qty:g} items to user <code>{uid}</code> from stock!",
+        )
     except Exception as e:
         bot.send_message(ADMIN_ID, f"❌ Failed to deliver message to user: {e}")
     return True
@@ -1462,17 +1516,13 @@ def process_balance_payment(call):
             smid = sm.message_id
         except Exception as e:
             print(e)
-        oid = create_order(
-            call.from_user.id, item, price, qs, unit, pkg, smid
-        )
+        oid = create_order(call.from_user.id, item, price, qs, unit, pkg, smid)
         add_buy_count(call.from_user.id)
         bot.answer_callback_query(call.id, "✅ Payment successful!")
-        
-        # Try Auto-Delivery from Stock
+
         if pid and deliver_stock_item_to_user(call.from_user.id, pid, qty, oid, smid):
             return
-            
-        # Fallback to Manual Delivery if Stock is empty
+
         threading.Thread(
             target=check_and_refund,
             args=(oid, call.from_user.id, price, item, smid),
@@ -1564,7 +1614,7 @@ def send_product_to_user(message):
     try:
         bot.send_message(
             tgt,
-            f"✅ <b>Purchase Successful!</b>\n\n📦 Order: #{oid}\n🏢 Provider: {d.get('product')}\n🔢 Quantity: {qf}\n💰 Balance: <b>{bal:g} USDT</b>\n💸 Paid: {float(d.get('price', 0)):g} USDT\n\n🔑 <b>Your code / key(s) :</b>\n{code}",
+            f"✅ <b>Purchase Successful!</b>\n\n📦 Order: #{oid}\n🏢 Provider: {d.get('product')}\n🔢 Quantity: {qf}\n💰 Balance: <b>${bal:.2f}</b>\n💸 Paid: {float(d.get('price', 0)):g} USDT\n\n🔑 <b>Your code / key(s) :</b>\n{code}",
             reply_markup=m,
         )
         bot.send_message(ADMIN_ID, f"✅ Order #{oid} delivered to <code>{tgt}</code>!")
@@ -1715,4 +1765,5 @@ if __name__ == "__main__":
         try:
             bot.infinity_polling(skip_pending=True, timeout=20, long_polling_timeout=20)
         except Exception as e:
-            print(f"Polling: {e}. Reconnecting..."); time.sleep(5)
+            print(f"Polling: {e}. Reconnecting...")
+            time.sleep(5)
