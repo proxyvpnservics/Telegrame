@@ -135,7 +135,7 @@ DEFAULT_DATABASE = {
                 "GV_US_Random": {
                     "price": 2.50,
                     "names": {"en": "US Google Voice (Random)", "zh": "美国谷歌Voice(随机)"},
-                    "accounts": [], "zip_files": []
+                    "accounts": []
                 }
             }
         },
@@ -146,7 +146,7 @@ DEFAULT_DATABASE = {
                 "Gmail_Old": {
                     "price": 0.80,
                     "names": {"en": "Old Aged Gmail", "zh": "老号 Gmail"},
-                    "accounts": [], "zip_files": []
+                    "accounts": []
                 }
             }
         },
@@ -158,7 +158,7 @@ DEFAULT_DATABASE = {
                     "price": 5.00,
                     "duration": "1 Month",
                     "names": {"en": "Premium VPN 1 Month", "zh": "高级 VPN 1个月"},
-                    "accounts": [], "zip_files": []
+                    "accounts": []
                 }
             }
         }
@@ -371,7 +371,11 @@ def get_category_items_keyboard(cat_key, user_id):
         item_name = item_val.get("names", {}).get(lang_code, item_key)
         price = item_val.get("price", 0.0)
         duration = f" ({item_val.get('duration')})" if item_val.get('duration') else ""
-        total_stock = len(item_val.get("accounts", []))
+        
+        # Total stock calculation (Accounts + Zips)
+        zip_stock = sum(len(zf.get("extracted_files", [])) for zf in item_val.get("zip_files", []))
+        total_stock = len(item_val.get("accounts", [])) + zip_stock
+        
         btn_text = f"📦 {item_name}{duration} - ${price:.2f} [{total_stock}]"
         markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_item_{cat_key}_{item_key}"))
         
@@ -1043,23 +1047,51 @@ def process_product_purchase(chat_id, user_id, item_key, qty):
                     chat_id, 
                     document=single_zip_buffer, 
                     visible_file_name=f"{item_key}_{file_short_name}.zip", 
-                    caption=f"{t['purchase_success']}\n\n📦 Item: {item_key}\n📁 File: {file_short_name}\n🔐 2FA & ZIP Password: {tfa_code}\n💵 Paid: ${price_per_unit:.2f}\n\n{t['balance_text']} ${user_balances[user_id]:.2f}"
+                    caption=f"{t['purchase_success']}\n\n📦 Item: {item_key}\n📁 File: {file_short_name}\n🔐 2FA & ZIP Password: `{tfa_code}`\n💵 Paid: ${price_per_unit:.2f}\n\n{t['balance_text']} ${user_balances[user_id]:.2f}",
+                    parse_mode="Markdown"
                 )
             elif len(accounts_list) > 0:
                 purchased_item = accounts_list.pop(0)
-                acc_info = purchased_item.get("info", "N/A")
-                acc_pass = purchased_item.get("password", "N/A")
-                acc_rec = purchased_item.get("recovery", "")
-                rec_text = f"\n🛡️ Recovery: {acc_rec}" if acc_rec and acc_rec != "N/A" else ""
                 
-                purchase_text = f"Bought {item_key}: {acc_info} for ${price_per_unit:.2f}"
-                if user_id not in user_purchases:
-                    user_purchases[user_id] = []
-                user_purchases[user_id].append({"text": purchase_text, "timestamp": time.time()})
-                save_user_data(user_id)
-                save_inventory()
-                success_text = f"{t['purchase_success']}\n\n📦 Product: {item_key}\n📧 Username/Email: {acc_info}\n🔑 Password: {acc_pass}{rec_text}\n💵 Paid: ${price_per_unit:.2f}\n\n{t['balance_text']} ${user_balances[user_id]:.2f}"
-                bot.send_message(chat_id, success_text)
+                # Check for Telegram Account format or Digital Good format (VPN/Gmail/GV)
+                if "number" in purchased_item:
+                    acc_num = purchased_item.get("number", "N/A")
+                    acc_2fa = purchased_item.get("2fa", "N/A")
+                    purchase_text = f"Bought {item_key}: {acc_num} for ${price_per_unit:.2f}"
+                    if user_id not in user_purchases:
+                        user_purchases[user_id] = []
+                    user_purchases[user_id].append({"text": purchase_text, "timestamp": time.time()})
+                    save_user_data(user_id)
+                    save_inventory()
+                    success_text = (
+                        f"{t['purchase_success']}\n\n"
+                        f"📦 Country: {item_key}\n"
+                        f"📱 Telegram Number: `{acc_num}`\n"
+                        f"🔐 2FA Code: `{acc_2fa}`\n"
+                        f"💵 Paid: ${price_per_unit:.2f}\n\n"
+                        f"{t['balance_text']} ${user_balances[user_id]:.2f}"
+                    )
+                else:
+                    acc_info = purchased_item.get("info", "N/A")
+                    acc_pass = purchased_item.get("password", "N/A")
+                    acc_rec = purchased_item.get("recovery", "")
+                    rec_text = f"\n🛡️ Recovery: `{acc_rec}`" if acc_rec and acc_rec != "N/A" else ""
+                    
+                    purchase_text = f"Bought {item_key}: {acc_info} for ${price_per_unit:.2f}"
+                    if user_id not in user_purchases:
+                        user_purchases[user_id] = []
+                    user_purchases[user_id].append({"text": purchase_text, "timestamp": time.time()})
+                    save_user_data(user_id)
+                    save_inventory()
+                    success_text = (
+                        f"{t['purchase_success']}\n\n"
+                        f"📦 Product: {item_key}\n"
+                        f"📧 Username/Email: `{acc_info}`\n"
+                        f"🔑 Password: `{acc_pass}`{rec_text}\n"
+                        f"💵 Paid: ${price_per_unit:.2f}\n\n"
+                        f"{t['balance_text']} ${user_balances[user_id]:.2f}"
+                    )
+                bot.send_message(chat_id, success_text, parse_mode="Markdown")
         except Exception as e:
             print(f"Error in delivering product: {e}")
             bot.send_message(chat_id, f"❌ Error delivering item: {str(e)}")
@@ -1520,7 +1552,9 @@ def handle_inline_clicks(call):
         target_item = product_inventory.get(cat_key, {}).get("items", {}).get(item_key, {})
         price = target_item.get("price", 1.00)
         duration = f" ({target_item.get('duration')})" if target_item.get('duration') else ""
-        stock_count = len(target_item.get("accounts", []))
+        
+        zip_stock = sum(len(zf.get("extracted_files", [])) for zf in target_item.get("zip_files", []))
+        stock_count = len(target_item.get("accounts", [])) + zip_stock
         
         markup = types.InlineKeyboardMarkup(row_width=1)
         cart_sel_text = "🛒 Select Quantity"
