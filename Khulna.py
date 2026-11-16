@@ -17,7 +17,7 @@ bot = telebot.TeleBot(TOKEN, threaded=False)
 # Firebase Database URL
 FIREBASE_URL = "https://pranto-7b42c-default-rtdb.firebaseio.com"
 
-# Support Username (Updated)
+# Support Username
 support_admin_username = "@LSY0088"
 
 # Admin ID List
@@ -113,7 +113,7 @@ def save_support():
 def is_admin(user_id):
     return int(user_id) in ADMIN_IDS
 
-# Enhanced Database with Categories: Countries, Google Voice, Gmail, VPN
+# Database Setup with Categories (Telegram Accounts, Google Voice, Gmail, VPN)
 DEFAULT_DATABASE = {
     "support_admin": "@LSY0088",
     "product_inventory": {
@@ -203,7 +203,7 @@ product_inventory = DEFAULT_DATABASE["product_inventory"]
 
 LANG = {
     "en": {
-        "welcome": "📍 Main Menu\n👋 Hello {user_name}!\n\nWelcome to Telegram Bot!\n\nMain Features:\n• User Center - Manage your account\n• Products - Browse and buy products (Telegram, Google Voice, Gmail, VPN)\n• Recharge - Multiple payment methods\n• Support: @LSY0088 - 24/7 online service\n• Language - Language settings\n\nTips:\nClick the buttons below to access features!",
+        "welcome": "📍 Main Menu\n👋 Hello {user_name}!\n\nWelcome to Telegram Bot!\n\nMain Features:\n• User Center - Manage your account\n• Buy Now - Browse and buy products (Telegram, Google Voice, Gmail, VPN)\n• Recharge - Multiple payment methods\n• Support: @LSY0088 - 24/7 online service\n• Language - Language settings\n\nTips:\nClick the buttons below to access features!",
         "products": "📁 Select a category / product folder:",
         "account": (
             "╭───────────────┬──────────────────────╮\n"
@@ -429,13 +429,22 @@ def get_admin_panel_keyboard(user_id):
     t = LANG[get_lang(user_id)]
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
+        types.InlineKeyboardButton("📱 Telegram Account Management", callback_data="admin_telegram_accounts_menu"),
         types.InlineKeyboardButton("📢 Broadcast Message", callback_data="admin_broadcast_start"),
         types.InlineKeyboardButton("👥 Management (Users & Balance)", callback_data="admin_management"),
-        types.InlineKeyboardButton("➕ Add New Country / Item", callback_data="admin_add_country"),
-        types.InlineKeyboardButton("🗂️ Add Zip File Stock", callback_data="admin_add_zip_menu"),
-        types.InlineKeyboardButton("✏️ Edit / Delete Categories", callback_data="admin_edit_delete_countries_menu"),
         types.InlineKeyboardButton("📞 Change Support Username", callback_data="admin_change_support"),
         types.InlineKeyboardButton(t["main_menu"], callback_data="go_main_menu")
+    )
+    return markup
+
+def get_telegram_admin_menu_keyboard(user_id):
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("🗂️ Add Zip File Stock", callback_data="admin_add_zip_menu"),
+        types.InlineKeyboardButton("➕ Add New Country", callback_data="admin_add_country"),
+        types.InlineKeyboardButton("Country Edit/Delete", callback_data="admin_edit_delete_countries_menu"),
+        types.InlineKeyboardButton("Country Price", callback_data="admin_edit_countries_price_menu"),
+        types.InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_back")
     )
     return markup
 
@@ -534,26 +543,20 @@ def cancel_operation(message):
 def handle_document_uploads(message):
     user_id = message.from_user.id
     if user_states.get(user_id) == "waiting_for_zip_file":
-        item_key = temp_admin_data.get(user_id)
+        country_name = temp_admin_data.get(user_id)
         file_info = bot.get_file(message.document.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         
-        target_item = None
-        for cat_k, cat_v in product_inventory.items():
-            if item_v := cat_v.get("items", {}).get(item_key):
-                target_item = item_v
-                break
-                
-        if target_item is not None:
+        if "Countries" in product_inventory and country_name in product_inventory["Countries"]["items"]:
             temp_admin_data[f"zip_bytes_{user_id}"] = list(downloaded_file)
             user_states[user_id] = "waiting_for_zip_2fa"
             response_msg = (
-                f"✅ ZIP File uploaded successfully for {item_key}!\n\n"
+                f"✅ ZIP File uploaded successfully for Telegram Country: {country_name}!\n\n"
                 f"🔐 Now, please send the Password / 2FA Code for this ZIP file so it can be verified and read properly:"
             )
             bot.send_message(message.chat.id, response_msg)
         else:
-            bot.send_message(message.chat.id, "❌ Invalid product/item selected.")
+            bot.send_message(message.chat.id, "❌ Invalid Telegram country selected.")
             user_states.pop(user_id, None)
 
 @bot.message_handler(content_types=['text', 'photo', 'video', 'document', 'audio'])
@@ -702,6 +705,65 @@ def handle_all_messages(message):
             pass
         return
 
+    if user_states.get(user_id) == "waiting_for_new_country":
+        c_name = message.text.strip().capitalize()
+        if "Countries" in product_inventory and c_name not in product_inventory["Countries"]["items"]:
+            temp_admin_data[user_id] = c_name
+            user_states[user_id] = "waiting_for_country_code"
+            bot.send_message(message.chat.id, f"📱 Now enter country phone code for Telegram {c_name} (e.g., +880):")
+        else:
+            bot.send_message(message.chat.id, f"⚠️ Telegram country {c_name} already exists.")
+            user_states.pop(user_id, None)
+        return
+
+    if user_states.get(user_id) == "waiting_for_country_code":
+        c_code = message.text.strip()
+        c_name = temp_admin_data.get(user_id)
+        if c_name:
+            if "Countries" not in product_inventory:
+                product_inventory["Countries"] = {"type": "countries", "items": {}}
+            product_inventory["Countries"]["items"][c_name] = {
+                "code": c_code, 
+                "price": 1.00, 
+                "names": {"en": c_name, "zh": c_name}, 
+                "accounts": [], 
+                "zip_files": []
+            }
+            save_inventory()
+            bot.send_message(message.chat.id, f"✅ Telegram Country {c_name} ({c_code}) added successfully!", reply_markup=get_admin_panel_keyboard(user_id))
+        user_states.pop(user_id, None)
+        return
+
+    if user_states.get(user_id, "").startswith("waiting_for_edit_price_"):
+        country_name = user_states.get(user_id).replace("waiting_for_edit_price_", "")
+        try:
+            new_price = float(message.text.strip())
+            if "Countries" in product_inventory and country_name in product_inventory["Countries"]["items"]:
+                product_inventory["Countries"]["items"][country_name]["price"] = new_price
+                save_inventory()
+                bot.send_message(message.chat.id, f"✅ Price for Telegram country {country_name} successfully updated to ${new_price:.2f}!", reply_markup=get_admin_panel_keyboard(user_id))
+            else:
+                bot.send_message(message.chat.id, "❌ Country not found.")
+        except ValueError:
+            bot.send_message(message.chat.id, "❌ Invalid price! Please enter a valid number (e.g., 1.50 or 2):")
+        user_states.pop(user_id, None)
+        return
+
+    if user_states.get(user_id, "").startswith("waiting_for_rename_country_"):
+        old_country = user_states.get(user_id).replace("waiting_for_rename_country_", "")
+        new_country = message.text.strip().capitalize()
+        proto_items = product_inventory.get("Countries", {}).get("items", {})
+        if new_country in proto_items:
+            bot.send_message(message.chat.id, f"⚠️ Country {new_country} already exists!")
+        elif old_country in proto_items:
+            proto_items[new_country] = proto_items.pop(old_country)
+            save_inventory()
+            bot.send_message(message.chat.id, f"✅ Successfully renamed country {old_country} to {new_country}!", reply_markup=get_admin_panel_keyboard(user_id))
+        else:
+            bot.send_message(message.chat.id, "❌ Country not found.")
+        user_states.pop(user_id, None)
+        return
+
     if user_states.get(user_id) == "waiting_for_broadcast_message":
         user_states.pop(user_id, None)
         success_count = 0
@@ -752,32 +814,24 @@ def handle_all_messages(message):
 
     if user_states.get(user_id) == "waiting_for_zip_2fa":
         tfa_code = message.text.strip() if message.text else ""
-        item_key = temp_admin_data.get(user_id)
+        country_name = temp_admin_data.get(user_id)
         zip_bytes_list = temp_admin_data.get(f"zip_bytes_{user_id}")
-        if item_key and zip_bytes_list and tfa_code:
+        if country_name and zip_bytes_list and tfa_code:
             zip_bytes = io.BytesIO(bytes(zip_bytes_list))
             try:
                 with pyzipper.AESZipFile(zip_bytes, 'r') as zf:
                     zf.setpassword(tfa_code.encode('utf-8'))
                     file_list = zf.namelist()
                     valid_files = [f for f in file_list if not f.endswith('/')]
-                    
-                    target_item = None
-                    for cat_k, cat_v in product_inventory.items():
-                        if item_v := cat_v.get("items", {}).get(item_key):
-                            target_item = item_v
-                            break
-                            
-                    if target_item is not None:
-                        if "zip_files" not in target_item:
-                            target_item["zip_files"] = []
-                        target_item["zip_files"].append({
-                            "zip_bytes": zip_bytes_list,
-                            "2fa": tfa_code,
-                            "extracted_files": valid_files
-                        })
-                        save_inventory()
-                        bot.send_message(message.chat.id, f"✅ Successfully added ZIP stock for {item_key}!\n📁 Total valid files: {len(valid_files)}\n🔐 Password / 2FA: {tfa_code}", reply_markup=get_admin_panel_keyboard(user_id))
+                    if "zip_files" not in product_inventory["Countries"]["items"][country_name]:
+                        product_inventory["Countries"]["items"][country_name]["zip_files"] = []
+                    product_inventory["Countries"]["items"][country_name]["zip_files"].append({
+                        "zip_bytes": zip_bytes_list,
+                        "2fa": tfa_code,
+                        "extracted_files": valid_files
+                    })
+                    save_inventory()
+                    bot.send_message(message.chat.id, f"✅ Successfully added ZIP stock for Telegram country {country_name}!\n📁 Total valid files: {len(valid_files)}\n🔐 Password / 2FA: {tfa_code}", reply_markup=get_admin_panel_keyboard(user_id))
             except Exception as e:
                 bot.send_message(message.chat.id, f"❌ Password Error!\nError details: {str(e)}", reply_markup=get_admin_panel_keyboard(user_id))
         user_states.pop(user_id, None)
@@ -822,11 +876,9 @@ def process_product_purchase(chat_id, user_id, item_key, qty):
     t = LANG[lang_code]
     
     target_item = None
-    category_key = None
     for cat_k, cat_v in product_inventory.items():
         if item_v := cat_v.get("items", {}).get(item_key):
             target_item = item_v
-            category_key = cat_k
             break
 
     if target_item is None:
@@ -884,15 +936,15 @@ def process_product_purchase(chat_id, user_id, item_key, qty):
                 )
             elif len(accounts_list) > 0:
                 purchased_item = accounts_list.pop(0)
-                acc_info = purchased_item.get("info", purchased_item.get("number", "N/A"))
-                acc_pass = purchased_item.get("password", purchased_item.get("2fa", "N/A"))
-                purchase_text = f"Bought {item_key}: {acc_info} for ${price_per_unit:.2f}"
+                acc_num = purchased_item.get("number", "N/A")
+                acc_2fa = purchased_item.get("2fa", "N/A")
+                purchase_text = f"Bought {item_key}: {acc_num} for ${price_per_unit:.2f}"
                 if user_id not in user_purchases:
                     user_purchases[user_id] = []
                 user_purchases[user_id].append({"text": purchase_text, "timestamp": time.time()})
                 save_user_data(user_id)
                 save_inventory()
-                success_text = f"{t['purchase_success']}\n\n📦 Product: {item_key}\n🔑 Credentials/Info: {acc_info}\n🔐 Password/2FA: {acc_pass}\n💵 Paid: ${price_per_unit:.2f}\n\n{t['balance_text']} ${user_balances[user_id]:.2f}"
+                success_text = f"{t['purchase_success']}\n\n📦 Country: {item_key}\n📱 Telegram Number: {acc_num}\n🔐 2FA Code: {acc_2fa}\n💵 Paid: ${price_per_unit:.2f}\n\n{t['balance_text']} ${user_balances[user_id]:.2f}"
                 bot.send_message(chat_id, success_text)
         except Exception as e:
             print(f"Error in delivering product: {e}")
@@ -923,6 +975,22 @@ def handle_inline_clicks(call):
                 "📞 Change Support Username\n\nPlease send new support username (e.g., @YourUsername):",
                 call.message.chat.id, 
                 call.message.message_id
+            )
+        except Exception:
+            pass
+        return
+
+    if call.data == "admin_telegram_accounts_menu":
+        if not is_admin(user_id):
+            bot.answer_callback_query(call.id, "Unauthorized", show_alert=True)
+            return
+        bot.answer_callback_query(call.id, "Telegram Accounts Menu")
+        try:
+            bot.edit_message_text(
+                "📱 Telegram Account Management\n\nChoose an option below:",
+                call.message.chat.id,
+                call.message.message_id,
+                reply_markup=get_telegram_admin_menu_keyboard(user_id)
             )
         except Exception:
             pass
@@ -1248,47 +1316,123 @@ def handle_inline_clicks(call):
     elif call.data == "admin_add_country":
         if not is_admin(user_id):
             return
-        bot.answer_callback_query(call.id, "Add Feature")
+        user_states[user_id] = "waiting_for_new_country"
+        bot.answer_callback_query(call.id, "Add Telegram Country")
         try:
-            bot.edit_message_text("ℹ️ To add stock or folders, please use Firebase Realtime Database or upload via ZIP stock menu.", call.message.chat.id, call.message.message_id, reply_markup=get_admin_panel_keyboard(user_id))
-        except:
+            bot.edit_message_text("🌍 Enter new Telegram country name (e.g., Canada):", call.message.chat.id, call.message.message_id)
+        except Exception:
             pass
         return
 
     elif call.data == "admin_edit_delete_countries_menu":
         if not is_admin(user_id):
             return
-        bot.answer_callback_query(call.id, "Categories Menu")
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        proto_items = product_inventory.get("Countries", {}).get("items", {})
+        if proto_items:
+            for c_name in proto_items.keys():
+                markup.add(
+                    types.InlineKeyboardButton(f"✏️ Rename: {c_name}", callback_data=f"admin_rename_country_{c_name}"),
+                    types.InlineKeyboardButton(f"❌ Delete: {c_name}", callback_data=f"admin_delete_country_{c_name}")
+                )
+        markup.add(types.InlineKeyboardButton(t["back"], callback_data="admin_telegram_accounts_menu"))
+        bot.answer_callback_query(call.id, "Country Edit/Delete Menu")
         try:
-            bot.edit_message_text("🌐 Manage Folders/Categories via Firebase Realtime Database (`product_inventory`).", call.message.chat.id, call.message.message_id, reply_markup=get_admin_panel_keyboard(user_id))
-        except:
+            bot.edit_message_text("🌐 Manage Countries (Edit/Delete):\nSelect an option below:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+        except Exception:
             pass
+        return
+
+    elif call.data == "admin_edit_countries_price_menu":
+        if not is_admin(user_id):
+            return
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        proto_items = product_inventory.get("Countries", {}).get("items", {})
+        if proto_items:
+            for c_name, c_val in proto_items.items():
+                c_price = c_val.get("price", 1.00)
+                markup.add(types.InlineKeyboardButton(f"💵 {c_name} (${c_price:.2f}) - Edit Price", callback_data=f"admin_edit_price_{c_name}"))
+        markup.add(types.InlineKeyboardButton(t["back"], callback_data="admin_telegram_accounts_menu"))
+        bot.answer_callback_query(call.id, "Country Price Menu")
+        try:
+            bot.edit_message_text("💵 Country Price Management:\nSelect a country to change its price:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+        except Exception:
+            pass
+        return
+
+    elif call.data.startswith("admin_edit_price_"):
+        if not is_admin(user_id):
+            return
+        country_name = call.data.replace("admin_edit_price_", "")
+        user_states[user_id] = f"waiting_for_edit_price_{country_name}"
+        current_price = product_inventory["Countries"]["items"].get(country_name, {}).get("price", 1.00)
+        bot.answer_callback_query(call.id, f"Edit Price {country_name}")
+        try:
+            bot.edit_message_text(f"💵 Edit Price for Telegram Country: {country_name}\n\nCurrent Price: ${current_price:.2f}\n\nPlease send new price (e.g., 1.50 or 2):", call.message.chat.id, call.message.message_id)
+        except Exception:
+            pass
+        return
+
+    elif call.data.startswith("admin_rename_country_"):
+        if not is_admin(user_id):
+            return
+        country_name = call.data.replace("admin_rename_country_", "")
+        user_states[user_id] = f"waiting_for_rename_country_{country_name}"
+        bot.answer_callback_query(call.id, f"Rename {country_name}")
+        try:
+            bot.edit_message_text(f"✏️ Enter new name for Telegram country {country_name}:", call.message.chat.id, call.message.message_id)
+        except Exception:
+            pass
+        return
+
+    elif call.data.startswith("admin_delete_country_"):
+        if not is_admin(user_id):
+            return
+        country_name = call.data.replace("admin_delete_country_", "")
+        proto_items = product_inventory.get("Countries", {}).get("items", {})
+        if country_name in proto_items:
+            del proto_items[country_name]
+            save_inventory()
+            bot.answer_callback_query(call.id, f"Deleted {country_name}")
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            for c in proto_items.keys():
+                markup.add(
+                    types.InlineKeyboardButton(f"✏️ Rename: {c}", callback_data=f"admin_rename_country_{c}"),
+                    types.InlineKeyboardButton(f"❌ Delete: {c}", callback_data=f"admin_delete_country_{c}")
+                )
+            markup.add(types.InlineKeyboardButton(t["back"], callback_data="admin_telegram_accounts_menu"))
+            try:
+                bot.edit_message_text(f"✅ Telegram Country {country_name} deleted successfully!\n\n🌐 Manage Countries:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+            except Exception:
+                pass
+        else:
+            bot.answer_callback_query(call.id, "Country not found", show_alert=True)
         return
 
     elif call.data == "admin_add_zip_menu":
         if not is_admin(user_id):
             return
         markup = types.InlineKeyboardMarkup(row_width=1)
-        for cat_k, cat_v in product_inventory.items():
-            for item_k in cat_v.get("items", {}).keys():
-                markup.add(types.InlineKeyboardButton(f"🗂️ Item ({item_k})", callback_data=f"select_zip_item_{item_k}"))
-        markup.add(types.InlineKeyboardButton(t["back"], callback_data="admin_back"))
+        countries = product_inventory.get("Countries", {}).get("items", {})
+        for c in countries.keys():
+            markup.add(types.InlineKeyboardButton(f"🗂️ Telegram Country ({c})", callback_data=f"select_zip_country_{c}"))
+        markup.add(types.InlineKeyboardButton(t["back"], callback_data="admin_telegram_accounts_menu"))
         bot.answer_callback_query(call.id, "ZIP Menu")
         try:
-            bot.edit_message_text("Select item/product to upload ZIP file stock:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+            bot.edit_message_text("Select Telegram country to upload ZIP file stock:", call.message.chat.id, call.message.message_id, reply_markup=markup)
         except Exception:
             pass
         return
 
-    elif call.data.startswith("select_zip_item_"):
+    elif call.data.startswith("select_zip_country_"):
         if not is_admin(user_id):
             return
-        item_key = call.data.replace("select_zip_item_", "")
-        temp_admin_data[user_id] = item_key
+        country_name = call.data.replace("select_zip_country_", "")
+        temp_admin_data[user_id] = country_name
         user_states[user_id] = "waiting_for_zip_file"
-        bot.answer_callback_query(call.id, item_key)
+        bot.answer_callback_query(call.id, country_name)
         try:
-            bot.edit_message_text(f"📁 Please send the .zip file for {item_key}:", call.message.chat.id, call.message.message_id)
+            bot.edit_message_text(f"📁 Please send the .zip file stock for Telegram Country: {country_name}:", call.message.chat.id, call.message.message_id)
         except Exception:
             pass
         return
