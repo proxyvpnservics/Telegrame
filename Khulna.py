@@ -113,7 +113,7 @@ def save_support():
 def is_admin(user_id):
     return int(user_id) in ADMIN_IDS
 
-# Database Setup with Categories (Telegram Accounts, Google Voice, Gmail, VPN)
+# Database Setup with Categories
 DEFAULT_DATABASE = {
     "support_admin": "@LSY0088",
     "product_inventory": {
@@ -372,7 +372,6 @@ def get_category_items_keyboard(cat_key, user_id):
         price = item_val.get("price", 0.0)
         duration = f" ({item_val.get('duration')})" if item_val.get('duration') else ""
         
-        # Total stock calculation (Accounts + Zips)
         zip_stock = sum(len(zf.get("extracted_files", [])) for zf in item_val.get("zip_files", []))
         total_stock = len(item_val.get("accounts", [])) + zip_stock
         
@@ -629,6 +628,8 @@ def handle_all_messages(message):
                 acc_info = parts[0]
                 acc_pass = parts[1]
                 if "VPN" in product_inventory and vpn_key in product_inventory["VPN"]["items"]:
+                    if "accounts" not in product_inventory["VPN"]["items"][vpn_key]:
+                        product_inventory["VPN"]["items"][vpn_key]["accounts"] = []
                     product_inventory["VPN"]["items"][vpn_key]["accounts"].append({"info": acc_info, "password": acc_pass})
                     added_count += 1
         save_inventory()
@@ -694,6 +695,8 @@ def handle_all_messages(message):
                         target_cat = cat_k
                         break
                 if target_cat:
+                    if "accounts" not in product_inventory[target_cat]["items"][key]:
+                        product_inventory[target_cat]["items"][key]["accounts"] = []
                     product_inventory[target_cat]["items"][key]["accounts"].append({
                         "info": email,
                         "password": password,
@@ -1053,7 +1056,6 @@ def process_product_purchase(chat_id, user_id, item_key, qty):
             elif len(accounts_list) > 0:
                 purchased_item = accounts_list.pop(0)
                 
-                # Check for Telegram Account format or Digital Good format (VPN/Gmail/GV)
                 if "number" in purchased_item:
                     acc_num = purchased_item.get("number", "N/A")
                     acc_2fa = purchased_item.get("2fa", "N/A")
