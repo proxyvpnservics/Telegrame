@@ -125,36 +125,6 @@ DEFAULT_DATABASE = {
                     "price": 1.50, 
                     "names": {"en": "Bangladesh", "zh": "孟加拉国"}, 
                     "accounts": [], "zip_files": []
-                },
-                "India": {
-                    "code": "+91", 
-                    "price": 1.20, 
-                    "names": {"en": "India", "zh": "印度"}, 
-                    "accounts": [], "zip_files": []
-                },
-                "Usa": {
-                    "code": "+1", 
-                    "price": 3.00, 
-                    "names": {"en": "USA", "zh": "美国"}, 
-                    "accounts": [], "zip_files": []
-                },
-                "Brazil": {
-                    "code": "+55", 
-                    "price": 2.00, 
-                    "names": {"en": "Brazil", "zh": "巴西"}, 
-                    "accounts": [], "zip_files": []
-                },
-                "Pakistan": {
-                    "code": "+92", 
-                    "price": 1.50, 
-                    "names": {"en": "Pakistan", "zh": "巴基斯坦"}, 
-                    "accounts": [], "zip_files": []
-                },
-                "Indonesia": {
-                    "code": "+62", 
-                    "price": 2.20, 
-                    "names": {"en": "Indonesia", "zh": "印度尼西亚"}, 
-                    "accounts": [], "zip_files": []
                 }
             }
         },
@@ -177,11 +147,6 @@ DEFAULT_DATABASE = {
                     "price": 0.80,
                     "names": {"en": "Old Aged Gmail", "zh": "老号 Gmail"},
                     "accounts": [], "zip_files": []
-                },
-                "Gmail_Fresh": {
-                    "price": 0.40,
-                    "names": {"en": "Fresh Verified Gmail", "zh": "新active Gmail"},
-                    "accounts": [], "zip_files": []
                 }
             }
         },
@@ -191,6 +156,7 @@ DEFAULT_DATABASE = {
             "items": {
                 "VPN_1Month": {
                     "price": 5.00,
+                    "duration": "1 Month",
                     "names": {"en": "Premium VPN 1 Month", "zh": "高级 VPN 1个月"},
                     "accounts": [], "zip_files": []
                 }
@@ -404,9 +370,9 @@ def get_category_items_keyboard(cat_key, user_id):
     for item_key, item_val in items.items():
         item_name = item_val.get("names", {}).get(lang_code, item_key)
         price = item_val.get("price", 0.0)
-        zip_stock = sum(len(zf.get("extracted_files", [])) for zf in item_val.get("zip_files", []))
-        total_stock = len(item_val.get("accounts", [])) + zip_stock
-        btn_text = f"📦 {item_name} - ${price:.2f} [{total_stock}]"
+        duration = f" ({item_val.get('duration')})" if item_val.get('duration') else ""
+        total_stock = len(item_val.get("accounts", []))
+        btn_text = f"📦 {item_name}{duration} - ${price:.2f} [{total_stock}]"
         markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_item_{cat_key}_{item_key}"))
         
     markup.add(types.InlineKeyboardButton(t["back"], callback_data="back_to_products_menu"))
@@ -430,6 +396,8 @@ def get_admin_panel_keyboard(user_id):
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("📱 Telegram Account Management", callback_data="admin_telegram_accounts_menu"),
+        types.InlineKeyboardButton("🔒 VPN Management", callback_data="admin_vpn_menu"),
+        types.InlineKeyboardButton("📧 Gmail / Google Voice Management", callback_data="admin_gmail_gv_menu"),
         types.InlineKeyboardButton("📢 Broadcast Message", callback_data="admin_broadcast_start"),
         types.InlineKeyboardButton("👥 Management (Users & Balance)", callback_data="admin_management"),
         types.InlineKeyboardButton("📞 Change Support Username", callback_data="admin_change_support"),
@@ -444,6 +412,24 @@ def get_telegram_admin_menu_keyboard(user_id):
         types.InlineKeyboardButton("➕ Add New Country", callback_data="admin_add_country"),
         types.InlineKeyboardButton("Country Edit/Delete", callback_data="admin_edit_delete_countries_menu"),
         types.InlineKeyboardButton("Country Price", callback_data="admin_edit_countries_price_menu"),
+        types.InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_back")
+    )
+    return markup
+
+def get_vpn_admin_menu_keyboard(user_id):
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("➕ Add New VPN", callback_data="admin_vpn_add"),
+        types.InlineKeyboardButton("✏️ VPN Edit/Delete", callback_data="admin_vpn_edit_delete"),
+        types.InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_back")
+    )
+    return markup
+
+def get_gmail_gv_admin_menu_keyboard(user_id):
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("➕ Add Gmail / Google Voice", callback_data="admin_gg_add"),
+        types.InlineKeyboardButton("✏️ Edit / Delete Gmail / GV", callback_data="admin_gg_edit_delete"),
         types.InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_back")
     )
     return markup
@@ -588,6 +574,131 @@ def handle_all_messages(message):
             f"✅ Support admin username successfully updated to: {support_admin_username}", 
             reply_markup=get_admin_panel_keyboard(user_id)
         )
+        return
+
+    # --- VPN ADD HANDLERS ---
+    if user_states.get(user_id) == "waiting_for_vpn_name":
+        vpn_name = message.text.strip()
+        temp_admin_data[f"vpn_name_{user_id}"] = vpn_name
+        user_states[user_id] = "waiting_for_vpn_duration"
+        bot.send_message(message.chat.id, "⏱️ Now enter the duration (e.g., 1 Month, 1 Year):")
+        return
+
+    if user_states.get(user_id) == "waiting_for_vpn_duration":
+        vpn_duration = message.text.strip()
+        temp_admin_data[f"vpn_duration_{user_id}"] = vpn_duration
+        user_states[user_id] = "waiting_for_vpn_price"
+        bot.send_message(message.chat.id, "💵 Now enter the price in USD (e.g., 5.00):")
+        return
+
+    if user_states.get(user_id) == "waiting_for_vpn_price":
+        try:
+            vpn_price = float(message.text.strip())
+            vpn_name = temp_admin_data.get(f"vpn_name_{user_id}")
+            vpn_duration = temp_admin_data.get(f"vpn_duration_{user_id}")
+            vpn_key = f"VPN_{int(time.time())}"
+            
+            if "VPN" not in product_inventory:
+                product_inventory["VPN"] = {"type": "digital_goods", "names": {"en": "VPN Services", "zh": "VPN 服务"}, "items": {}}
+            
+            product_inventory["VPN"]["items"][vpn_key] = {
+                "price": vpn_price,
+                "duration": vpn_duration,
+                "names": {"en": f"{vpn_name} ({vpn_duration})", "zh": f"{vpn_name} ({vpn_duration})"},
+                "accounts": []
+            }
+            save_inventory()
+            user_states.pop(user_id, None)
+            bot.send_message(message.chat.id, f"✅ VPN package '{vpn_name}' added successfully!", reply_markup=get_admin_panel_keyboard(user_id))
+        except ValueError:
+            bot.send_message(message.chat.id, "❌ Invalid price! Please enter a valid number (e.g., 5.00):")
+        return
+
+    # --- VPN STOCK HANDLERS ---
+    if user_states.get(user_id, "").startswith("waiting_for_vpn_stock_"):
+        vpn_key = user_states.get(user_id).replace("waiting_for_vpn_stock_", "")
+        lines = message.text.strip().split("\n")
+        added_count = 0
+        for line in lines:
+            parts = line.strip().split(" ", 1)
+            if len(parts) >= 2:
+                acc_info = parts[0]
+                acc_pass = parts[1]
+                if "VPN" in product_inventory and vpn_key in product_inventory["VPN"]["items"]:
+                    product_inventory["VPN"]["items"][vpn_key]["accounts"].append({"info": acc_info, "password": acc_pass})
+                    added_count += 1
+        save_inventory()
+        user_states.pop(user_id, None)
+        bot.send_message(message.chat.id, f"✅ Successfully added {added_count} stock items to VPN!", reply_markup=get_admin_panel_keyboard(user_id))
+        return
+
+    # --- GMAIL / GV ADD HANDLERS ---
+    if user_states.get(user_id) == "waiting_for_gg_type":
+        gg_choice = message.text.strip()
+        if "1" in gg_choice:
+            temp_admin_data[f"gg_cat_{user_id}"] = "Gmail"
+            bot.send_message(message.chat.id, "📧 Enter Gmail package name (e.g., Old Aged Gmail):")
+        else:
+            temp_admin_data[f"gg_cat_{user_id}"] = "Google_Voice"
+            bot.send_message(message.chat.id, "📞 Enter Google Voice package name (e.g., US Google Voice):")
+        user_states[user_id] = "waiting_for_gg_name"
+        return
+
+    if user_states.get(user_id) == "waiting_for_gg_name":
+        temp_admin_data[f"gg_name_{user_id}"] = message.text.strip()
+        user_states[user_id] = "waiting_for_gg_price"
+        bot.send_message(message.chat.id, "💵 Enter price in USD (e.g., 0.80):")
+        return
+
+    if user_states.get(user_id) == "waiting_for_gg_price":
+        try:
+            price = float(message.text.strip())
+            cat = temp_admin_data.get(f"gg_cat_{user_id}")
+            name = temp_admin_data.get(f"gg_name_{user_id}")
+            key = f"{cat}_{int(time.time())}"
+            
+            if cat not in product_inventory:
+                product_inventory[cat] = {"type": "digital_goods", "names": {"en": cat, "zh": cat}, "items": {}}
+                
+            product_inventory[cat]["items"][key] = {
+                "price": price,
+                "names": {"en": name, "zh": name},
+                "accounts": []
+            }
+            save_inventory()
+            user_states.pop(user_id, None)
+            bot.send_message(message.chat.id, f"✅ Category '{name}' created successfully!", reply_markup=get_admin_panel_keyboard(user_id))
+        except ValueError:
+            bot.send_message(message.chat.id, "❌ Invalid price! Please enter numbers only:")
+        return
+
+    # --- GMAIL / GV STOCK ADD ---
+    if user_states.get(user_id, "").startswith("waiting_for_gg_stock_"):
+        key = user_states.get(user_id).replace("waiting_for_gg_stock_", "")
+        lines = message.text.strip().split("\n")
+        added_count = 0
+        for line in lines:
+            parts = line.strip().split()
+            if len(parts) >= 2:
+                email = parts[0]
+                password = parts[1]
+                recovery = parts[2] if len(parts) > 2 else "N/A"
+                
+                target_cat = None
+                for cat_k in ["Gmail", "Google_Voice"]:
+                    if cat_k in product_inventory and key in product_inventory[cat_k]["items"]:
+                        target_cat = cat_k
+                        break
+                if target_cat:
+                    product_inventory[target_cat]["items"][key]["accounts"].append({
+                        "info": email,
+                        "password": password,
+                        "recovery": recovery
+                    })
+                    added_count += 1
+        save_inventory()
+        user_states.pop(user_id, None)
+        bot.send_message(message.chat.id, f"✅ Successfully added {added_count} accounts/stock!", reply_markup=get_admin_panel_keyboard(user_id))
         return
 
     if user_states.get(user_id, "").startswith("waiting_for_txid_"):
@@ -936,15 +1047,18 @@ def process_product_purchase(chat_id, user_id, item_key, qty):
                 )
             elif len(accounts_list) > 0:
                 purchased_item = accounts_list.pop(0)
-                acc_num = purchased_item.get("number", "N/A")
-                acc_2fa = purchased_item.get("2fa", "N/A")
-                purchase_text = f"Bought {item_key}: {acc_num} for ${price_per_unit:.2f}"
+                acc_info = purchased_item.get("info", "N/A")
+                acc_pass = purchased_item.get("password", "N/A")
+                acc_rec = purchased_item.get("recovery", "")
+                rec_text = f"\n🛡️ Recovery: {acc_rec}" if acc_rec and acc_rec != "N/A" else ""
+                
+                purchase_text = f"Bought {item_key}: {acc_info} for ${price_per_unit:.2f}"
                 if user_id not in user_purchases:
                     user_purchases[user_id] = []
                 user_purchases[user_id].append({"text": purchase_text, "timestamp": time.time()})
                 save_user_data(user_id)
                 save_inventory()
-                success_text = f"{t['purchase_success']}\n\n📦 Country: {item_key}\n📱 Telegram Number: {acc_num}\n🔐 2FA Code: {acc_2fa}\n💵 Paid: ${price_per_unit:.2f}\n\n{t['balance_text']} ${user_balances[user_id]:.2f}"
+                success_text = f"{t['purchase_success']}\n\n📦 Product: {item_key}\n📧 Username/Email: {acc_info}\n🔑 Password: {acc_pass}{rec_text}\n💵 Paid: ${price_per_unit:.2f}\n\n{t['balance_text']} ${user_balances[user_id]:.2f}"
                 bot.send_message(chat_id, success_text)
         except Exception as e:
             print(f"Error in delivering product: {e}")
@@ -982,17 +1096,146 @@ def handle_inline_clicks(call):
 
     if call.data == "admin_telegram_accounts_menu":
         if not is_admin(user_id):
-            bot.answer_callback_query(call.id, "Unauthorized", show_alert=True)
             return
         bot.answer_callback_query(call.id, "Telegram Accounts Menu")
         try:
-            bot.edit_message_text(
-                "📱 Telegram Account Management\n\nChoose an option below:",
-                call.message.chat.id,
-                call.message.message_id,
-                reply_markup=get_telegram_admin_menu_keyboard(user_id)
+            bot.edit_message_text("📱 Telegram Account Management\n\nChoose an option below:", call.message.chat.id, call.message.message_id, reply_markup=get_telegram_admin_menu_keyboard(user_id))
+        except:
+            pass
+        return
+
+    if call.data == "admin_vpn_menu":
+        if not is_admin(user_id):
+            return
+        bot.answer_callback_query(call.id, "VPN Management")
+        try:
+            bot.edit_message_text("🔒 VPN Management\n\nChoose an option below:", call.message.chat.id, call.message.message_id, reply_markup=get_vpn_admin_menu_keyboard(user_id))
+        except:
+            pass
+        return
+
+    if call.data == "admin_gmail_gv_menu":
+        if not is_admin(user_id):
+            return
+        bot.answer_callback_query(call.id, "Gmail/GV Management")
+        try:
+            bot.edit_message_text("📧 Gmail & Google Voice Management\n\nChoose an option below:", call.message.chat.id, call.message.message_id, reply_markup=get_gmail_gv_admin_menu_keyboard(user_id))
+        except:
+            pass
+        return
+
+    if call.data == "admin_vpn_add":
+        if not is_admin(user_id):
+            return
+        user_states[user_id] = "waiting_for_vpn_name"
+        bot.answer_callback_query(call.id, "Add VPN")
+        try:
+            bot.edit_message_text("🔒 Enter VPN Package Name (e.g., ExpressVPN / NordVPN):", call.message.chat.id, call.message.message_id)
+        except:
+            pass
+        return
+
+    if call.data == "admin_vpn_edit_delete":
+        if not is_admin(user_id):
+            return
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        vpn_items = product_inventory.get("VPN", {}).get("items", {})
+        for k, v in vpn_items.items():
+            name = v.get("names", {}).get("en", k)
+            markup.add(
+                types.InlineKeyboardButton(f"➕ Add Stock: {name}", callback_data=f"vpn_add_stock_{k}"),
+                types.InlineKeyboardButton(f"❌ Delete: {name}", callback_data=f"vpn_del_{k}")
             )
-        except Exception:
+        markup.add(types.InlineKeyboardButton(t["back"], callback_data="admin_vpn_menu"))
+        bot.answer_callback_query(call.id, "VPN Edit/Delete")
+        try:
+            bot.edit_message_text("🔒 Select VPN to add stock or delete:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+        except:
+            pass
+        return
+
+    if call.data.startswith("vpn_add_stock_"):
+        if not is_admin(user_id):
+            return
+        vpn_key = call.data.replace("vpn_add_stock_", "")
+        user_states[user_id] = f"waiting_for_vpn_stock_{vpn_key}"
+        bot.answer_callback_query(call.id, "Add Stock")
+        try:
+            bot.edit_message_text("📥 Send stock accounts in format:\n`username password` (one per line):", call.message.chat.id, call.message.message_id, parse_mode="Markdown")
+        except:
+            pass
+        return
+
+    if call.data.startswith("vpn_del_"):
+        if not is_admin(user_id):
+            return
+        vpn_key = call.data.replace("vpn_del_", "")
+        if vpn_key in product_inventory.get("VPN", {}).get("items", {}):
+            del product_inventory["VPN"]["items"][vpn_key]
+            save_inventory()
+            bot.answer_callback_query(call.id, "VPN Deleted Successfully!", show_alert=True)
+        try:
+            bot.edit_message_text("✅ VPN package deleted successfully!", call.message.chat.id, call.message.message_id, reply_markup=get_vpn_admin_menu_keyboard(user_id))
+        except:
+            pass
+        return
+
+    if call.data == "admin_gg_add":
+        if not is_admin(user_id):
+            return
+        user_states[user_id] = "waiting_for_gg_type"
+        bot.answer_callback_query(call.id, "Add Gmail/GV")
+        try:
+            bot.edit_message_text("📧 Choose Category to Add:\n\n1. Gmail Accounts\n2. Google Voice\n\n(Send 1 or 2):", call.message.chat.id, call.message.message_id)
+        except:
+            pass
+        return
+
+    if call.data == "admin_gg_edit_delete":
+        if not is_admin(user_id):
+            return
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for cat_k in ["Gmail", "Google_Voice"]:
+            items = product_inventory.get(cat_k, {}).get("items", {})
+            for k, v in items.items():
+                name = v.get("names", {}).get("en", k)
+                markup.add(
+                    types.InlineKeyboardButton(f"➕ Add Stock ({cat_k}): {name}", callback_data=f"gg_add_stock_{k}"),
+                    types.InlineKeyboardButton(f"❌ Delete: {name}", callback_data=f"gg_del_{k}")
+                )
+        markup.add(types.InlineKeyboardButton(t["back"], callback_data="admin_gmail_gv_menu"))
+        bot.answer_callback_query(call.id, "Gmail/GV Edit/Delete")
+        try:
+            bot.edit_message_text("📧 Select Gmail or Google Voice to add stock or delete:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+        except:
+            pass
+        return
+
+    if call.data.startswith("gg_add_stock_"):
+        if not is_admin(user_id):
+            return
+        gg_key = call.data.replace("gg_add_stock_", "")
+        user_states[user_id] = f"waiting_for_gg_stock_{gg_key}"
+        bot.answer_callback_query(call.id, "Add Stock")
+        try:
+            bot.edit_message_text("📥 Send accounts stock in format (one per line):\n`email password [recovery]` (Recovery optional):", call.message.chat.id, call.message.message_id, parse_mode="Markdown")
+        except:
+            pass
+        return
+
+    if call.data.startswith("gg_del_"):
+        if not is_admin(user_id):
+            return
+        gg_key = call.data.replace("gg_del_", "")
+        for cat_k in ["Gmail", "Google_Voice"]:
+            if gg_key in product_inventory.get(cat_k, {}).get("items", {}):
+                del product_inventory[cat_k]["items"][gg_key]
+                save_inventory()
+                break
+        bot.answer_callback_query(call.id, "Item Deleted Successfully!", show_alert=True)
+        try:
+            bot.edit_message_text("✅ Item deleted successfully!", call.message.chat.id, call.message.message_id, reply_markup=get_gmail_gv_admin_menu_keyboard(user_id))
+        except:
             pass
         return
 
@@ -1276,8 +1519,8 @@ def handle_inline_clicks(call):
         
         target_item = product_inventory.get(cat_key, {}).get("items", {}).get(item_key, {})
         price = target_item.get("price", 1.00)
-        zip_stock = sum(len(zf.get("extracted_files", [])) for zf in target_item.get("zip_files", []))
-        stock_count = len(target_item.get("accounts", [])) + zip_stock
+        duration = f" ({target_item.get('duration')})" if target_item.get('duration') else ""
+        stock_count = len(target_item.get("accounts", []))
         
         markup = types.InlineKeyboardMarkup(row_width=1)
         cart_sel_text = "🛒 Select Quantity"
@@ -1286,7 +1529,7 @@ def handle_inline_clicks(call):
             types.InlineKeyboardButton(t["back"], callback_data=f"cat_{cat_key}")
         )
         try:
-            item_detail_text = f"📦 Product: {item_key}\n\n💰 Price: ${price:.2f}\n📦 Available {t['stock']}: {stock_count} items\n\nClick below to proceed to quantity selection:"
+            item_detail_text = f"📦 Product: {item_key}{duration}\n\n💰 Price: ${price:.2f}\n📦 Available {t['stock']}: {stock_count} items\n\nClick below to proceed to quantity selection:"
             bot.edit_message_text(item_detail_text, call.message.chat.id, call.message.message_id, reply_markup=markup)
         except Exception:
             pass
