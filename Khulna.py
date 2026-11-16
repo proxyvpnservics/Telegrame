@@ -167,7 +167,17 @@ LANG = {
     "en": {
         "welcome": "📍 Main Menu\n👋 Hello {user_name}!\n\nWelcome to Telegram Bot!\n\nMain Features:\n• User Center - Manage your account\n• Products - Browse and buy products\n• TRX & Energy - TRX and energy trading\n• Recharge - Multiple payment methods\n• Support: @LSY0088 - 24/7 online service\n• Language - Language settings\n\nTips:\nClick the buttons below to access features!",
         "products": "📁 Select a country:",
-        "account": "◆ USER CENTER / ACCOUNT\n────────────────────────\nUser ID: {user_id}\nUsername: {username}\nBalance: ${balance:.2f}\nPurchased: {purchased_total}\n\n👇 Select a country from the list below:",
+        "account": (
+            "╭───────────────┬──────────────────────╮\n"
+            "│     Field     │         Value        │\n"
+            "├───────────────┼──────────────────────┤\n"
+            "│ 💰 Balance    │ ${balance:.2f}                │\n"
+            "│ 🧾 Orders     │ {purchased_total}                    │\n"
+            "│ 👤 Name       │ {name}         │\n"
+            "│ 🆔 Username   │ {username}        │\n"
+            "│ 📱 Chat ID    │ {user_id}          │\n"
+            "╰───────────────┴──────────────────────╯"
+        ),
         "deposit": "Select amount (USDT):",
         "support": "📞 Support Center\n\nFor any help, issues or assistance, please contact our support admin:\n👉 {support_user}",
         "language": "🌐 Language Settings / 语言设置\n\nPlease click the button below to switch language:",
@@ -202,7 +212,17 @@ LANG = {
     "zh": {
         "welcome": "📍 主菜单\n👋 你好 {user_name}！\n\n欢迎使用电报机器人！\n\n主要功能：\n• 用户中心 - 管理您的账户\n• 产品中心 - 浏览并购买产品\n• TRX与能量 - TRX及能量交易\n• 账户充值 - 多种支付方式\n• 客服支持：@LSY0088 - 7/24在线服务\n• 语言设置 - 切换语言选项\n\n提示：\n点击下方按钮访问各项功能！",
         "products": "📁 选择国家：",
-        "account": "◆ 用户中心 / 账户信息\n────────────────────────\n用户 ID: {user_id}\n用户名: {username}\n余额: ${balance:.2f}\n已购总额: {purchased_total}\n\n👇 从下方列表选择国家：",
+        "account": (
+            "╭───────────────┬──────────────────────╮\n"
+            "│     字段      │         数值         │\n"
+            "├───────────────┼──────────────────────┤\n"
+            "│ 💰 余额       │ ${balance:.2f}                │\n"
+            "│ 🧾 订单数     │ {purchased_total}                    │\n"
+            "│ 👤 姓名       │ {name}         │\n"
+            "│ 🆔 用户名     │ {username}        │\n"
+            "│ 📱 聊天ID     │ {user_id}          │\n"
+            "╰───────────────┴──────────────────────╯"
+        ),
         "deposit": "请选择充值金额 (USDT)：",
         "support": "📞 支持中心\n\n如有任何帮助、问题或协助，请直接联系我们的支持管理员：\n👉 {support_user}",
         "language": "🌐 语言设置 / Language Settings\n\nPlease click the button below to switch language:",
@@ -312,17 +332,7 @@ def get_quantity_keyboard(item_key, user_id):
 def get_account_keyboard(user_id):
     lang_code = get_lang(user_id)
     t = LANG[lang_code]
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    if "Countries" in product_inventory and "items" in product_inventory["Countries"]:
-        buttons = []
-        for country, data in product_inventory["Countries"]["items"].items():
-            c_code = data.get("code", "")
-            c_name = data.get("names", {}).get(lang_code, country)
-            zip_stock_count = sum(len(zf.get("extracted_files", [])) for zf in data.get("zip_files", []))
-            total_stock = len(data.get("accounts", [])) + zip_stock_count
-            btn_text = f"🌐 {c_name} ({c_code}) [{total_stock}]"
-            buttons.append(types.InlineKeyboardButton(btn_text, callback_data=f"select_country_{country}"))
-        markup.add(*buttons)
+    markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(types.InlineKeyboardButton(t["main_menu"], callback_data="go_main_menu"))
     return markup
 
@@ -781,9 +791,10 @@ def handle_all_messages(message):
     elif is_account:
         user = message.from_user
         username = f"@{user.username}" if user.username else "N/A"
+        name = user.first_name or "N/A"
         balance_val = user_balances.get(user_id, 0.00)
         purchased_total = len(user_purchases.get(user_id, []))
-        account_text = t["account"].format(user_id=user.id, username=username, balance=balance_val, purchased_total=purchased_total)
+        account_text = t["account"].format(user_id=user.id, username=username, name=name, balance=balance_val, purchased_total=purchased_total)
         bot.send_message(message.chat.id, account_text, reply_markup=get_account_keyboard(user_id))
     elif is_support:
         support_msg = t["support"].format(support_user=support_admin_username)
@@ -1130,9 +1141,10 @@ def handle_inline_clicks(call):
         bot.answer_callback_query(call.id, "Account Menu")
         user = call.from_user
         username = f"@{user.username}" if user.username else "N/A"
+        name = user.first_name or "N/A"
         balance_val = user_balances.get(user_id, 0.00)
         purchased_total = len(user_purchases.get(user_id, []))
-        account_text = t["account"].format(user_id=user.id, username=username, balance=balance_val, purchased_total=purchased_total)
+        account_text = t["account"].format(user_id=user.id, username=username, name=name, balance=balance_val, purchased_total=purchased_total)
         try:
             bot.edit_message_text(account_text, call.message.chat.id, call.message.message_id, reply_markup=get_account_keyboard(user_id))
         except Exception:
@@ -1353,7 +1365,7 @@ def handle_inline_clicks(call):
             send_val = f"{calculated_val:.3f} USDT"
             credit_val = f"${current_amount:.2f}"
             currency_type = "USDT · TRC20"
-            wallet_address = "TPgp911fhwLoK2cKHMvV5oRzFX5hc9NCY8" # Updated TRC20
+            wallet_address = "TPgp911fhwLoK2cKHMvV5oRzFX5hc9NCY8"
             network_name = "Tron (TRC20)"
             net_code = "tron"
         else:
@@ -1361,7 +1373,7 @@ def handle_inline_clicks(call):
             send_val = f"{calculated_val:.3f} USDT"
             credit_val = f"${current_amount:.2f}"
             currency_type = "USDT · BEP20"
-            wallet_address = "0x6ea90338aa1f55b4cbd6326c781549df59e416d7" # Updated BEP20
+            wallet_address = "0x6ea90338aa1f55b4cbd6326c781549df59e416d7"
             network_name = "BNB Smart Chain (BEP20)"
             net_code = "bsc"
 
@@ -1415,10 +1427,8 @@ if __name__ == '__main__':
     load_data_from_firebase()
     set_bot_commands(bot)
     
-    # Render-এর নিজস্ব URL সেট করুন
     RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL", "https://telegram-nirupom-bot.onrender.com")
     
-    # পুরানো ওয়েবহুক রিমूव করে নতুন ওয়েবহুক সেট করা হচ্ছে
     bot.remove_webhook()
     time.sleep(1)
     bot.set_webhook(url=f"{RENDER_URL}/{TOKEN}")
