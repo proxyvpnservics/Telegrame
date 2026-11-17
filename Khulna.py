@@ -20,8 +20,8 @@ FIREBASE_URL = "https://pranto-7b42c-default-rtdb.firebaseio.com"
 # Support Username
 support_admin_username = "@LSY0088"
 
-# Admin ID List
-ADMIN_IDS = [8138758919]
+# Admin ID List (Updated)
+ADMIN_IDS = [8138758919, 6954924404]
 
 # In-memory Database & State Management
 user_amounts = {}
@@ -372,7 +372,6 @@ def get_products_categories_keyboard(user_id):
     markup.add(types.InlineKeyboardButton(t["main_menu"], callback_data="go_main_menu"))
     return markup
 
-# এখানে আপডেট করা হয়েছে যাতে কান্ট্রি কোড সহ শো করে
 def get_category_items_keyboard(cat_key, user_id):
     lang_code = get_lang(user_id)
     t = LANG[lang_code]
