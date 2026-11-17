@@ -12,7 +12,7 @@ from flask import Flask, request
 
 # Token Setup (Updated)
 TOKEN = "9076321596:AAH0hTayGxF0rfUgyYasb8CPez5hNPZBEDE"
-bot = telebot.TeleBot(TOKEN, threaded=False)
+bot = telebot.TeleBot(TOKEN, threaded=True)
 
 # Firebase Database URL
 FIREBASE_URL = "https://pranto-7b42c-default-rtdb.firebaseio.com"
