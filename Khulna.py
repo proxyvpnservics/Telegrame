@@ -72,7 +72,7 @@ def fb_put(path, data):
     return False
 
 def load_data_from_firebase():
-    global user_balances, user_purchases, user_deposits, user_languages, all_users, product_inventory, support_admin_username
+    global user_balances, user_purchases, user_deposits, user_languages, all_users, product_inventory, support_admin_username, pending_deposits, used_txids
     
     b = fb_get("user_balances")
     if b: user_balances = {int(k): float(v) for k, v in b.items()}
@@ -95,6 +95,12 @@ def load_data_from_firebase():
     sup = fb_get("support_admin_username")
     if sup: support_admin_username = sup
 
+    pd = fb_get("pending_deposits")
+    if pd: pending_deposits = pd
+
+    ut = fb_get("used_txids")
+    if ut: used_txids = set(ut)
+
 def save_user_data(user_id):
     fb_put(f"user_balances/{user_id}", user_balances.get(user_id, 0.0))
     fb_put(f"user_purchases/{user_id}", user_purchases.get(user_id, []))
@@ -107,6 +113,12 @@ def save_inventory():
 
 def save_support():
     fb_put("support_admin_username", support_admin_username)
+
+def save_pending_deposits():
+    fb_put("pending_deposits", pending_deposits)
+
+def save_used_txids():
+    fb_put("used_txids", list(used_txids))
 
 # ----------------- END FIREBASE HELPERS -----------------
 
@@ -712,13 +724,25 @@ def handle_all_messages(message):
         order_id = user_states.get(user_id).replace("waiting_for_txid_", "")
         user_states.pop(user_id, None)
         
+        txid_input = message.text.strip() if message.text else f"Photo/Media_{message.message_id}"
+        
+        # Check if TxID already used
+        if txid_input in used_txids:
+            bot.send_message(message.chat.id, t["txid_used"], reply_markup=get_main_menu_keyboard(user_id))
+            return
+            
+        used_txids.add(txid_input)
+        save_used_txids()
+
         dep_amt = user_amounts.get(user_id, 3.00)
         dep_id = f"dep_{user_id}_{int(time.time())}"
         pending_deposits[dep_id] = {
             "user_id": user_id,
             "amount": dep_amt,
-            "order_id": order_id
+            "order_id": order_id,
+            "txid": txid_input
         }
+        save_pending_deposits()
 
         admin_id = ADMIN_IDS[0] if ADMIN_IDS else 8138758919
         user_name = message.from_user.first_name or "N/A"
@@ -730,8 +754,6 @@ def handle_all_messages(message):
             types.InlineKeyboardButton("❌ Reject", callback_data=f"dep_reject_{dep_id}")
         )
 
-        trx_info = message.text if message.text else "Screenshot / Media"
-
         admin_notification = (
             f"💰 New Deposit Request!\n"
             f"──────────────────────\n"
@@ -739,7 +761,7 @@ def handle_all_messages(message):
             f"🆔 User ID: {user_id}\n"
             f"📦 Order ID: {order_id}\n"
             f"💵 Amount: ${dep_amt:.2f}\n"
-            f"Trx: {trx_info}\n"
+            f"TxID / Proof: {txid_input}\n"
             f"──────────────────────\n"
             f"Click buttons below to Accept or Reject:"
         )
@@ -1282,6 +1304,8 @@ def handle_inline_clicks(call):
         
         if dep_id in pending_deposits:
             dep_info = pending_deposits.pop(dep_id)
+            save_pending_deposits()
+            
             target_uid = dep_info["user_id"]
             amount = dep_info["amount"]
             order_id = dep_info["order_id"]
