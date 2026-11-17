@@ -10,7 +10,7 @@ import time
 import requests
 from flask import Flask, request
 
-# Token Setup (Updated)
+# Token Setup
 TOKEN = "9076321596:AAE1bvrMR-mduEc8S3GKU42mP43eELzCGVE"
 bot = telebot.TeleBot(TOKEN, threaded=False)
 
@@ -20,7 +20,7 @@ FIREBASE_URL = "https://pranto-7b42c-default-rtdb.firebaseio.com"
 # Support Username
 support_admin_username = "@LSY0088"
 
-# Admin ID List (Updated)
+# Admin ID List
 ADMIN_IDS = [8138758919, 6954924404]
 
 # In-memory Database & State Management
@@ -216,8 +216,8 @@ LANG = {
         "insufficient_stock": "❌ Insufficient stock! Available stock:",
         "insufficient_balance": "❌ Insufficient balance!\nRequired:",
         "balance_text": "Remaining Balance:",
-        "deposit_select_amt": "Enter custom deposit amount (USDT, Min $3):",
-        "min_network": "❌ Minimum deposit for this network is $3.00!",
+        "deposit_select_amt": "Enter custom deposit amount (USDT, Min $2.5):",
+        "min_network": "❌ Minimum deposit for this network is $2.50!",
         "order_created": "[ ORDER CREATED ]",
         "send_exact": "Send exactly",
         "credit_by_admin": "Your balance will be credited by admin once verified.",
@@ -261,8 +261,8 @@ LANG = {
         "insufficient_stock": "❌ 库存不足！可用库存：",
         "insufficient_balance": "❌ 余额不足！\n需要：",
         "balance_text": "剩余余额：",
-        "deposit_select_amt": "请输入自定义充值金额 (USDT，最低 $3)：",
-        "min_network": "❌ 该网络最低充值金额为 $3.00！",
+        "deposit_select_amt": "请输入自定义充值金额 (USDT，最低 $2.5)：",
+        "min_network": "❌ 该网络最低充值金额为 $2.50！",
         "order_created": "[ 订单已创建 ]",
         "send_exact": "请准确发送",
         "credit_by_admin": "管理员验证后将自动为您的账户充值余额。",
@@ -298,7 +298,7 @@ def get_select_amount_keyboard(user_id):
     t = LANG[get_lang(user_id)]
     markup = types.InlineKeyboardMarkup(row_width=3)
     markup.add(
-        types.InlineKeyboardButton("3 USDT", callback_data="amt_3"),
+        types.InlineKeyboardButton("2.5 USDT", callback_data="amt_2.5"),
         types.InlineKeyboardButton("5 USDT", callback_data="amt_5"),
         types.InlineKeyboardButton("10 USDT", callback_data="amt_10"),
         types.InlineKeyboardButton("20 USDT", callback_data="amt_20"),
@@ -313,8 +313,8 @@ def get_payment_methods_keyboard(user_id):
     t = LANG[get_lang(user_id)]
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("💵 USDT (TRC20) (Min $3)", callback_data="order_usdt_trc20"),
-        types.InlineKeyboardButton("💵 USDT (BEP20) (Min $3)", callback_data="order_usdt_bep20"),
+        types.InlineKeyboardButton("💵 USDT (TRC20) (Min $2.5)", callback_data="order_usdt_trc20"),
+        types.InlineKeyboardButton("💵 USDT (BEP20) (Min $2.5)", callback_data="order_usdt_bep20"),
         types.InlineKeyboardButton(t["cancel"], callback_data="dep_cancel")
     )
     return markup
@@ -738,7 +738,7 @@ def handle_all_messages(message):
         used_txids.add(txid_input)
         save_used_txids()
 
-        dep_amt = user_amounts.get(user_id, 3.00)
+        dep_amt = user_amounts.get(user_id, 2.50)
         dep_id = f"dep_{user_id}_{int(time.time())}"
         pending_deposits[dep_id] = {
             "user_id": user_id,
@@ -938,7 +938,7 @@ def handle_all_messages(message):
     if user_states.get(user_id) == "waiting_for_custom_amount":
         try:
             custom_amount = float(text.strip())
-            min_limit = 3.00
+            min_limit = 2.50
             if custom_amount < min_limit:
                 bot.send_message(message.chat.id, f"❌ Minimum deposit amount is ${min_limit:.2f}. Please enter again:")
                 return
@@ -1782,8 +1782,8 @@ def handle_inline_clicks(call):
         return
 
     elif call.data in ["order_usdt_trc20", "order_usdt_bep20"]:
-        current_amount = user_amounts.get(user_id, 3.00)
-        if current_amount < 3.0:
+        current_amount = user_amounts.get(user_id, 2.50)
+        if current_amount < 2.5:
             bot.answer_callback_query(call.id, t["min_network"], show_alert=True)
             return
         order_id = f"ORD-{random.randint(100000, 999999)}"
