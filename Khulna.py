@@ -372,6 +372,7 @@ def get_products_categories_keyboard(user_id):
     markup.add(types.InlineKeyboardButton(t["main_menu"], callback_data="go_main_menu"))
     return markup
 
+# এখানে আপডেট করা হয়েছে যাতে কান্ট্রি কোড সহ শো করে
 def get_category_items_keyboard(cat_key, user_id):
     lang_code = get_lang(user_id)
     t = LANG[lang_code]
@@ -383,10 +384,16 @@ def get_category_items_keyboard(cat_key, user_id):
         item_name = item_val.get("names", {}).get(lang_code, item_key)
         price = item_val.get("price", 0.0)
         
+        country_code = item_val.get("code")
+        if country_code:
+            display_name = f"{item_name} ({country_code})"
+        else:
+            display_name = item_name
+        
         zip_stock = sum(len(zf.get("extracted_files", [])) for zf in item_val.get("zip_files", []))
         total_stock = len(item_val.get("accounts", [])) + zip_stock
         
-        btn_text = f"📦 {item_name} - ${price:.2f} [{total_stock}]"
+        btn_text = f"📦 {display_name} - ${price:.2f} [{total_stock}]"
         markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_item_{cat_key}_{item_key}"))
         
     markup.add(types.InlineKeyboardButton(t["back"], callback_data="back_to_products_menu"))
@@ -725,7 +732,6 @@ def handle_all_messages(message):
         
         txid_input = text.strip() if text else f"Photo_Proof_{message.message_id}"
         
-        # Check if TxID already used
         if txid_input in used_txids:
             bot.send_message(message.chat.id, t["txid_used"], reply_markup=get_main_menu_keyboard(user_id))
             return
@@ -1808,7 +1814,6 @@ def handle_inline_clicks(call):
         user_deposits[user_id].append({"text": deposit_text, "timestamp": time.time()})
         save_user_data(user_id)
         
-        # Markdown দিয়ে ফরম্যাট করা হয়েছে যাতে ওয়ালেট অ্যাড্রেস সহজে ট্যাপ করে কপি করা যায়
         order_text = (
             f"*[ ORDER CREATED ]*  {currency_type}\n"
             f"──────────────────────\n"
