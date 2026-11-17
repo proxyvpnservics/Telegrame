@@ -10,8 +10,8 @@ import time
 import requests
 from flask import Flask, request
 
-# Token Setup
-TOKEN = "8908618066:AAHCcMP6YcGtSeOGlEpFW98CjljFPtwGfNw"
+# Token Setup (Updated)
+TOKEN = "9076321596:AAE1bvrMR-mduEc8S3GKU42mP43eELzCGVE"
 bot = telebot.TeleBot(TOKEN, threaded=False)
 
 # Firebase Database URL
