@@ -573,11 +573,11 @@ def handle_all_messages(message):
     
     lang_code = get_lang(user_id)
     t = LANG[lang_code]
-    text = message.text if message.text else ""
+    text = message.text if message.text else (message.caption if message.caption else "")
 
     if user_states.get(user_id) == "waiting_for_new_support_username":
         global support_admin_username
-        new_support = message.text.strip()
+        new_support = text.strip()
         if not new_support.startswith("@"):
             new_support = "@" + new_support
         support_admin_username = new_support
@@ -592,14 +592,14 @@ def handle_all_messages(message):
 
     # --- VPN ADD HANDLERS ---
     if user_states.get(user_id) == "waiting_for_vpn_name":
-        vpn_name = message.text.strip()
+        vpn_name = text.strip()
         temp_admin_data[f"vpn_name_{user_id}"] = vpn_name
         user_states[user_id] = "waiting_for_vpn_duration"
         bot.send_message(message.chat.id, "⏱️ Now enter the duration (e.g., 1 Month, 7 Days):")
         return
 
     if user_states.get(user_id) == "waiting_for_vpn_duration":
-        vpn_duration = message.text.strip()
+        vpn_duration = text.strip()
         temp_admin_data[f"vpn_duration_{user_id}"] = vpn_duration
         user_states[user_id] = "waiting_for_vpn_price"
         bot.send_message(message.chat.id, "💵 Now enter the price in USD (e.g., 5.00):")
@@ -607,7 +607,7 @@ def handle_all_messages(message):
 
     if user_states.get(user_id) == "waiting_for_vpn_price":
         try:
-            vpn_price = float(message.text.strip())
+            vpn_price = float(text.strip())
             vpn_name = temp_admin_data.get(f"vpn_name_{user_id}")
             vpn_duration = temp_admin_data.get(f"vpn_duration_{user_id}")
             vpn_key = f"VPN_{int(time.time())}"
@@ -631,7 +631,7 @@ def handle_all_messages(message):
     # --- VPN STOCK HANDLERS ---
     if user_states.get(user_id, "").startswith("waiting_for_vpn_stock_"):
         vpn_key = user_states.get(user_id).replace("waiting_for_vpn_stock_", "")
-        lines = message.text.strip().split("\n")
+        lines = text.strip().split("\n")
         added_count = 0
         for line in lines:
             parts = line.strip().split(" ", 1)
@@ -650,7 +650,7 @@ def handle_all_messages(message):
 
     # --- GMAIL / GV ADD HANDLERS ---
     if user_states.get(user_id) == "waiting_for_gg_type":
-        gg_choice = message.text.strip()
+        gg_choice = text.strip()
         if "1" in gg_choice:
             temp_admin_data[f"gg_cat_{user_id}"] = "Gmail"
             bot.send_message(message.chat.id, "📧 Enter Gmail package name (e.g., Old Aged Gmail):")
@@ -661,14 +661,14 @@ def handle_all_messages(message):
         return
 
     if user_states.get(user_id) == "waiting_for_gg_name":
-        temp_admin_data[f"gg_name_{user_id}"] = message.text.strip()
+        temp_admin_data[f"gg_name_{user_id}"] = text.strip()
         user_states[user_id] = "waiting_for_gg_price"
         bot.send_message(message.chat.id, "💵 Enter price in USD (e.g., 0.80):")
         return
 
     if user_states.get(user_id) == "waiting_for_gg_price":
         try:
-            price = float(message.text.strip())
+            price = float(text.strip())
             cat = temp_admin_data.get(f"gg_cat_{user_id}")
             name = temp_admin_data.get(f"gg_name_{user_id}")
             key = f"{cat}_{int(time.time())}"
@@ -691,7 +691,7 @@ def handle_all_messages(message):
     # --- GMAIL / GV STOCK ADD ---
     if user_states.get(user_id, "").startswith("waiting_for_gg_stock_"):
         key = user_states.get(user_id).replace("waiting_for_gg_stock_", "")
-        lines = message.text.strip().split("\n")
+        lines = text.strip().split("\n")
         added_count = 0
         for line in lines:
             parts = line.strip().split()
@@ -723,7 +723,7 @@ def handle_all_messages(message):
         order_id = user_states.get(user_id).replace("waiting_for_txid_", "")
         user_states.pop(user_id, None)
         
-        txid_input = message.text.strip() if message.text else f"Photo_Proof_{message.message_id}"
+        txid_input = text.strip() if text else f"Photo_Proof_{message.message_id}"
         
         # Check if TxID already used
         if txid_input in used_txids:
@@ -793,7 +793,7 @@ def handle_all_messages(message):
     if user_states.get(user_id) == "waiting_for_mgmt_search":
         user_states.pop(user_id, None)
         try:
-            target = int(message.text.strip())
+            target = int(text.strip())
         except:
             bot.send_message(message.chat.id, "❌ Invalid User ID! Please enter numbers only (e.g., 123456789):", reply_markup=get_admin_panel_keyboard(user_id))
             return
@@ -811,7 +811,7 @@ def handle_all_messages(message):
         action = parts[0]
         target_uid = int(parts[1])
         try:
-            amount = float(message.text.strip())
+            amount = float(text.strip())
         except:
             bot.send_message(message.chat.id, "❌ Invalid amount! Please enter a valid number (e.g., 10 or 5.50):")
             return
@@ -845,7 +845,7 @@ def handle_all_messages(message):
         return
 
     if user_states.get(user_id) == "waiting_for_new_country":
-        c_name = message.text.strip().capitalize()
+        c_name = text.strip().capitalize()
         if "Countries" in product_inventory and c_name not in product_inventory["Countries"]["items"]:
             temp_admin_data[user_id] = c_name
             user_states[user_id] = "waiting_for_country_code"
@@ -856,7 +856,7 @@ def handle_all_messages(message):
         return
 
     if user_states.get(user_id) == "waiting_for_country_code":
-        c_code = message.text.strip()
+        c_code = text.strip()
         c_name = temp_admin_data.get(user_id)
         if c_name:
             if "Countries" not in product_inventory:
@@ -876,7 +876,7 @@ def handle_all_messages(message):
     if user_states.get(user_id, "").startswith("waiting_for_edit_price_"):
         country_name = user_states.get(user_id).replace("waiting_for_edit_price_", "")
         try:
-            new_price = float(message.text.strip())
+            new_price = float(text.strip())
             if "Countries" in product_inventory and country_name in product_inventory["Countries"]["items"]:
                 product_inventory["Countries"]["items"][country_name]["price"] = new_price
                 save_inventory()
@@ -890,7 +890,7 @@ def handle_all_messages(message):
 
     if user_states.get(user_id, "").startswith("waiting_for_rename_country_"):
         old_country = user_states.get(user_id).replace("waiting_for_rename_country_", "")
-        new_country = message.text.strip().capitalize()
+        new_country = text.strip().capitalize()
         proto_items = product_inventory.get("Countries", {}).get("items", {})
         if new_country in proto_items:
             bot.send_message(message.chat.id, f"⚠️ Country {new_country} already exists!")
@@ -920,7 +920,7 @@ def handle_all_messages(message):
     if user_states.get(user_id, "").startswith("waiting_for_custom_qty_"):
         item_key = user_states.get(user_id).replace("waiting_for_custom_qty_", "")
         try:
-            qty = int(message.text.strip())
+            qty = int(text.strip())
             if qty <= 0:
                 bot.send_message(message.chat.id, "❌ Please enter a valid quantity greater than 0:")
                 return
@@ -932,7 +932,7 @@ def handle_all_messages(message):
 
     if user_states.get(user_id) == "waiting_for_custom_amount":
         try:
-            custom_amount = float(message.text.strip())
+            custom_amount = float(text.strip())
             min_limit = 3.00
             if custom_amount < min_limit:
                 bot.send_message(message.chat.id, f"❌ Minimum deposit amount is ${min_limit:.2f}. Please enter again:")
@@ -952,7 +952,7 @@ def handle_all_messages(message):
         return
 
     if user_states.get(user_id) == "waiting_for_zip_2fa":
-        tfa_code = message.text.strip() if message.text else ""
+        tfa_code = text.strip() if text else ""
         country_name = temp_admin_data.get(user_id)
         zip_bytes_list = temp_admin_data.get(f"zip_bytes_{user_id}")
         if country_name and zip_bytes_list and tfa_code:
@@ -1808,25 +1808,26 @@ def handle_inline_clicks(call):
         user_deposits[user_id].append({"text": deposit_text, "timestamp": time.time()})
         save_user_data(user_id)
         
+        # Markdown দিয়ে ফরম্যাট করা হয়েছে যাতে ওয়ালেট অ্যাড্রেস সহজে ট্যাপ করে কপি করা যায়
         order_text = (
-            "[ ORDER CREATED ]  " + currency_type + "\n"
-            "──────────────────────\n"
-            f"  Send     ·  {send_val}\n"
-            f"  Credit   ·  {credit_val}\n"
-            f"  Order    ·  {order_id}\n"
+            f"*[ ORDER CREATED ]*  {currency_type}\n"
+            f"──────────────────────\n"
+            f"  Send     ·  `{send_val}`\n"
+            f"  Credit   ·  `{credit_val}`\n"
+            f"  Order    ·  `{order_id}`\n"
             f"  Network  ·  {network_name}\n"
-            f"  Address  ·  {wallet_address}\n"
+            f"  Address  ·  `{wallet_address}`\n"
             f"  Expires  ·  {current_time}\n"
-            "──────────────────────\n"
-            f"Send exactly {send_val}, including all decimals. This amount was converted from ${current_amount:.2f} at the Binance price when the order was created and ends in a unique identifier; ${current_amount:.2f} is credited when it arrives.\n"
+            f"──────────────────────\n"
+            f"Send exactly `{send_val}`, including all decimals. This amount was converted from `${current_amount:.2f}` at the Binance price when the order was created and ends in a unique identifier; `${current_amount:.2f}` is credited when it arrives.\n"
             f"Send native assets/tokens on the {network_name} network only.\n"
-            "Your balance will be credited by admin once verified."
+            f"Your balance will be credited by admin once verified."
         )
         bot.answer_callback_query(call.id, "Order Generated!")
         try:
-            bot.edit_message_text(order_text, call.message.chat.id, call.message.message_id, reply_markup=get_order_created_keyboard(net_code, order_id, user_id))
+            bot.edit_message_text(order_text, call.message.chat.id, call.message.message_id, reply_markup=get_order_created_keyboard(net_code, order_id, user_id), parse_mode="Markdown")
         except Exception:
-            bot.send_message(call.message.chat.id, order_text, reply_markup=get_order_created_keyboard(net_code, order_id, user_id))
+            bot.send_message(call.message.chat.id, order_text, reply_markup=get_order_created_keyboard(net_code, order_id, user_id), parse_mode="Markdown")
         return
 
     elif call.data == "back_to_products_menu":
