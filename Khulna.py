@@ -382,12 +382,11 @@ def get_category_items_keyboard(cat_key, user_id):
     for item_key, item_val in items.items():
         item_name = item_val.get("names", {}).get(lang_code, item_key)
         price = item_val.get("price", 0.0)
-        duration = f" ({item_val.get('duration')})" if item_val.get('duration') else ""
         
         zip_stock = sum(len(zf.get("extracted_files", [])) for zf in item_val.get("zip_files", []))
         total_stock = len(item_val.get("accounts", [])) + zip_stock
         
-        btn_text = f"📦 {item_name}{duration} - ${price:.2f} [{total_stock}]"
+        btn_text = f"📦 {item_name} - ${price:.2f} [{total_stock}]"
         markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_item_{cat_key}_{item_key}"))
         
     markup.add(types.InlineKeyboardButton(t["back"], callback_data="back_to_products_menu"))
@@ -596,7 +595,7 @@ def handle_all_messages(message):
         vpn_name = message.text.strip()
         temp_admin_data[f"vpn_name_{user_id}"] = vpn_name
         user_states[user_id] = "waiting_for_vpn_duration"
-        bot.send_message(message.chat.id, "⏱️ Now enter the duration (e.g., 1 Month, 1 Year):")
+        bot.send_message(message.chat.id, "⏱️ Now enter the duration (e.g., 1 Month, 7 Days):")
         return
 
     if user_states.get(user_id) == "waiting_for_vpn_duration":
@@ -624,7 +623,7 @@ def handle_all_messages(message):
             }
             save_inventory()
             user_states.pop(user_id, None)
-            bot.send_message(message.chat.id, f"✅ VPN package '{vpn_name}' added successfully!", reply_markup=get_admin_panel_keyboard(user_id))
+            bot.send_message(message.chat.id, f"✅ VPN package '{vpn_name} ({vpn_duration})' added successfully!", reply_markup=get_admin_panel_keyboard(user_id))
         except ValueError:
             bot.send_message(message.chat.id, "❌ Invalid price! Please enter a valid number (e.g., 5.00):")
         return
@@ -724,7 +723,7 @@ def handle_all_messages(message):
         order_id = user_states.get(user_id).replace("waiting_for_txid_", "")
         user_states.pop(user_id, None)
         
-        txid_input = message.text.strip() if message.text else f"Photo/Media_{message.message_id}"
+        txid_input = message.text.strip() if message.text else f"Photo_Proof_{message.message_id}"
         
         # Check if TxID already used
         if txid_input in used_txids:
@@ -1185,7 +1184,7 @@ def handle_inline_clicks(call):
         user_states[user_id] = "waiting_for_vpn_name"
         bot.answer_callback_query(call.id, "Add VPN")
         try:
-            bot.edit_message_text("🔒 Enter VPN Package Name (e.g., ExpressVPN / NordVPN):", call.message.chat.id, call.message.message_id)
+            bot.edit_message_text("🔒 Enter VPN Package Name (e.g., ExpressVPN / NordVPN):\n(Do NOT include duration here, it will be asked next)", call.message.chat.id, call.message.message_id)
         except:
             pass
         return
