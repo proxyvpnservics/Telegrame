@@ -467,12 +467,14 @@ def get_vpn_admin_menu_keyboard(user_id):
         markup.add(
             types.InlineKeyboardButton("➕ Add New VPN", callback_data="admin_vpn_add"),
             types.InlineKeyboardButton("✏️ VPN Edit/Delete", callback_data="admin_vpn_edit_delete"),
+            types.InlineKeyboardButton("💵 VPN Price Edit", callback_data="admin_vpn_price_menu"),
             types.InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_back")
         )
     else:
         markup.add(
             types.InlineKeyboardButton("➕ 添加新 VPN", callback_data="admin_vpn_add"),
             types.InlineKeyboardButton("✏️ VPN 编辑/删除", callback_data="admin_vpn_edit_delete"),
+            types.InlineKeyboardButton("💵 VPN 价格修改", callback_data="admin_vpn_price_menu"),
             types.InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_back")
         )
     return markup
@@ -484,12 +486,16 @@ def get_gmail_gv_admin_menu_keyboard(user_id):
         markup.add(
             types.InlineKeyboardButton("➕ Add Gmail / Google Voice", callback_data="admin_gg_add"),
             types.InlineKeyboardButton("✏️ Edit / Delete Gmail / GV", callback_data="admin_gg_edit_delete"),
+            types.InlineKeyboardButton("💵 Gmail Price Edit", callback_data="admin_gmail_price_menu"),
+            types.InlineKeyboardButton("💵 Google Voice Price Edit", callback_data="admin_gv_price_menu"),
             types.InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_back")
         )
     else:
         markup.add(
             types.InlineKeyboardButton("➕ 添加 Gmail / 谷歌Voice", callback_data="admin_gg_add"),
             types.InlineKeyboardButton("✏️ 编辑 / 删除 Gmail / GV", callback_data="admin_gg_edit_delete"),
+            types.InlineKeyboardButton("💵 Gmail 价格修改", callback_data="admin_gmail_price_menu"),
+            types.InlineKeyboardButton("💵 谷歌Voice 价格修改", callback_data="admin_gv_price_menu"),
             types.InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_back")
         )
     return markup
@@ -688,6 +694,63 @@ def handle_all_messages(message):
         user_states.pop(user_id, None)
         success_sup = f"✅ Support admin username successfully updated to: {support_admin_username}" if lang_code == "en" else f"✅ 客服管理员用户名已成功更新为: {support_admin_username}"
         bot.send_message(message.chat.id, success_sup, reply_markup=get_admin_panel_keyboard(user_id))
+        return
+
+    # --- VPN PRICE EDIT HANDLER ---
+    if user_states.get(user_id, "").startswith("waiting_for_vpn_price_edit_"):
+        vpn_key = user_states.get(user_id).replace("waiting_for_vpn_price_edit_", "")
+        try:
+            new_price = float(text.strip())
+            if "VPN" in product_inventory and vpn_key in product_inventory["VPN"]["items"]:
+                product_inventory["VPN"]["items"][vpn_key]["price"] = new_price
+                save_inventory()
+                suc_msg = f"✅ VPN price successfully updated to ${new_price:.2f}!" if lang_code == "en" else f"✅ VPN 价格已成功更新为 ${new_price:.2f}！"
+                bot.send_message(message.chat.id, suc_msg, reply_markup=get_admin_panel_keyboard(user_id))
+            else:
+                err_m = "❌ VPN package not found." if lang_code == "en" else "❌ 未找到该 VPN 套餐。"
+                bot.send_message(message.chat.id, err_m)
+        except ValueError:
+            err_v = "❌ Invalid price! Please enter a valid number (e.g., 5.00):" if lang_code == "en" else "❌ 价格无效！请输入有效数字（例如：5.00）："
+            bot.send_message(message.chat.id, err_v)
+        user_states.pop(user_id, None)
+        return
+
+    # --- GMAIL PRICE EDIT HANDLER ---
+    if user_states.get(user_id, "").startswith("waiting_for_gmail_price_edit_"):
+        gmail_key = user_states.get(user_id).replace("waiting_for_gmail_price_edit_", "")
+        try:
+            new_price = float(text.strip())
+            if "Gmail" in product_inventory and gmail_key in product_inventory["Gmail"]["items"]:
+                product_inventory["Gmail"]["items"][gmail_key]["price"] = new_price
+                save_inventory()
+                suc_msg = f"✅ Gmail price successfully updated to ${new_price:.2f}!" if lang_code == "en" else f"✅ Gmail 价格已成功更新为 ${new_price:.2f}！"
+                bot.send_message(message.chat.id, suc_msg, reply_markup=get_admin_panel_keyboard(user_id))
+            else:
+                err_m = "❌ Gmail package not found." if lang_code == "en" else "❌ 未找到该 Gmail 套餐。"
+                bot.send_message(message.chat.id, err_m)
+        except ValueError:
+            err_v = "❌ Invalid price! Please enter a valid number (e.g., 0.80):" if lang_code == "en" else "❌ 价格无效！请输入有效数字（例如：0.80）："
+            bot.send_message(message.chat.id, err_v)
+        user_states.pop(user_id, None)
+        return
+
+    # --- GOOGLE VOICE PRICE EDIT HANDLER ---
+    if user_states.get(user_id, "").startswith("waiting_for_gv_price_edit_"):
+        gv_key = user_states.get(user_id).replace("waiting_for_gv_price_edit_", "")
+        try:
+            new_price = float(text.strip())
+            if "Google_Voice" in product_inventory and gv_key in product_inventory["Google_Voice"]["items"]:
+                product_inventory["Google_Voice"]["items"][gv_key]["price"] = new_price
+                save_inventory()
+                suc_msg = f"✅ Google Voice price successfully updated to ${new_price:.2f}!" if lang_code == "en" else f"✅ 谷歌Voice 价格已成功更新为 ${new_price:.2f}！"
+                bot.send_message(message.chat.id, suc_msg, reply_markup=get_admin_panel_keyboard(user_id))
+            else:
+                err_m = "❌ Google Voice package not found." if lang_code == "en" else "❌ 未找到该谷歌Voice套餐。"
+                bot.send_message(message.chat.id, err_m)
+        except ValueError:
+            err_v = "❌ Invalid price! Please enter a valid number (e.g., 2.50):" if lang_code == "en" else "❌ 价格无效！请输入有效数字（例如：2.50）："
+            bot.send_message(message.chat.id, err_v)
+        user_states.pop(user_id, None)
         return
 
     # --- VPN ADD HANDLERS ---
@@ -1354,6 +1417,102 @@ def handle_inline_clicks(call):
         try:
             gg_m_txt = "📧 Gmail & Google Voice Management\n\nChoose an option below:" if lang_code == "en" else "📧 Gmail & 谷歌Voice管理\n\n在下方选择一个选项："
             bot.edit_message_text(gg_m_txt, call.message.chat.id, call.message.message_id, reply_markup=get_gmail_gv_admin_menu_keyboard(user_id))
+        except:
+            pass
+        return
+
+    # --- VPN PRICE MENU HANDLER ---
+    if call.data == "admin_vpn_price_menu":
+        if not is_admin(user_id):
+            return
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        vpn_items = product_inventory.get("VPN", {}).get("items", {})
+        for k, v in vpn_items.items():
+            name = v.get("names", {}).get(lang_code, k)
+            price = v.get("price", 0.0)
+            markup.add(types.InlineKeyboardButton(f"💵 {name} (${price:.2f}) - Edit Price" if lang_code == "en" else f"💵 {name} (${price:.2f}) - 修改价格", callback_data=f"vpn_edit_price_{k}"))
+        markup.add(types.InlineKeyboardButton(t["back"], callback_data="admin_vpn_menu"))
+        bot.answer_callback_query(call.id, "VPN Price Menu")
+        try:
+            bot.edit_message_text("💵 VPN Price Management:\nSelect a VPN package to change its price:" if lang_code == "en" else "💵 VPN 价格管理：\n选择要更改价格的 VPN 套餐：", call.message.chat.id, call.message.message_id, reply_markup=markup)
+        except:
+            pass
+        return
+
+    if call.data.startswith("vpn_edit_price_"):
+        if not is_admin(user_id):
+            return
+        vpn_key = call.data.replace("vpn_edit_price_", "")
+        user_states[user_id] = f"waiting_for_vpn_price_edit_{vpn_key}"
+        curr_price = product_inventory["VPN"]["items"].get(vpn_key, {}).get("price", 0.0)
+        bot.answer_callback_query(call.id, "Edit VPN Price")
+        try:
+            p_text = f"💵 Enter new price for VPN (Current: ${curr_price:.2f}):" if lang_code == "en" else f"💵 输入 VPN 的新价格（当前: ${curr_price:.2f}）："
+            bot.edit_message_text(p_text, call.message.chat.id, call.message.message_id)
+        except:
+            pass
+        return
+
+    # --- GMAIL PRICE MENU HANDLER ---
+    if call.data == "admin_gmail_price_menu":
+        if not is_admin(user_id):
+            return
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        gmail_items = product_inventory.get("Gmail", {}).get("items", {})
+        for k, v in gmail_items.items():
+            name = v.get("names", {}).get(lang_code, k)
+            price = v.get("price", 0.0)
+            markup.add(types.InlineKeyboardButton(f"💵 {name} (${price:.2f}) - Edit Price" if lang_code == "en" else f"💵 {name} (${price:.2f}) - 修改价格", callback_data=f"gmail_edit_price_{k}"))
+        markup.add(types.InlineKeyboardButton(t["back"], callback_data="admin_gmail_gv_menu"))
+        bot.answer_callback_query(call.id, "Gmail Price Menu")
+        try:
+            bot.edit_message_text("💵 Gmail Price Management:\nSelect a Gmail package to change its price:" if lang_code == "en" else "💵 Gmail 价格管理：\n选择要更改价格的 Gmail 套餐：", call.message.chat.id, call.message.message_id, reply_markup=markup)
+        except:
+            pass
+        return
+
+    if call.data.startswith("gmail_edit_price_"):
+        if not is_admin(user_id):
+            return
+        gmail_key = call.data.replace("gmail_edit_price_", "")
+        user_states[user_id] = f"waiting_for_gmail_price_edit_{gmail_key}"
+        curr_price = product_inventory["Gmail"]["items"].get(gmail_key, {}).get("price", 0.0)
+        bot.answer_callback_query(call.id, "Edit Gmail Price")
+        try:
+            p_text = f"💵 Enter new price for Gmail (Current: ${curr_price:.2f}):" if lang_code == "en" else f"💵 输入 Gmail 的新价格（当前: ${curr_price:.2f}）："
+            bot.edit_message_text(p_text, call.message.chat.id, call.message.message_id)
+        except:
+            pass
+        return
+
+    # --- GOOGLE VOICE PRICE MENU HANDLER ---
+    if call.data == "admin_gv_price_menu":
+        if not is_admin(user_id):
+            return
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        gv_items = product_inventory.get("Google_Voice", {}).get("items", {})
+        for k, v in gv_items.items():
+            name = v.get("names", {}).get(lang_code, k)
+            price = v.get("price", 0.0)
+            markup.add(types.InlineKeyboardButton(f"💵 {name} (${price:.2f}) - Edit Price" if lang_code == "en" else f"💵 {name} (${price:.2f}) - 修改价格", callback_data=f"gv_edit_price_{k}"))
+        markup.add(types.InlineKeyboardButton(t["back"], callback_data="admin_gmail_gv_menu"))
+        bot.answer_callback_query(call.id, "Google Voice Price Menu")
+        try:
+            bot.edit_message_text("💵 Google Voice Price Management:\nSelect a Google Voice package to change its price:" if lang_code == "en" else "💵 谷歌Voice 价格管理：\n选择要更改价格的谷歌Voice套餐：", call.message.chat.id, call.message.message_id, reply_markup=markup)
+        except:
+            pass
+        return
+
+    if call.data.startswith("gv_edit_price_"):
+        if not is_admin(user_id):
+            return
+        gv_key = call.data.replace("gv_edit_price_", "")
+        user_states[user_id] = f"waiting_for_gv_price_edit_{gv_key}"
+        curr_price = product_inventory["Google_Voice"]["items"].get(gv_key, {}).get("price", 0.0)
+        bot.answer_callback_query(call.id, "Edit Google Voice Price")
+        try:
+            p_text = f"💵 Enter new price for Google Voice (Current: ${curr_price:.2f}):" if lang_code == "en" else f"💵 输入谷歌Voice的新价格（当前: ${curr_price:.2f}）："
+            bot.edit_message_text(p_text, call.message.chat.id, call.message.message_id)
         except:
             pass
         return
