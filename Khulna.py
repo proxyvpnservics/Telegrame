@@ -1,26 +1,31 @@
 import telebot
 from telebot import types
 import pyzipper
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 import random
 import os
 import io
-import json
 import time
+import base64
 import requests
 from flask import Flask, request
 
-# Token Setup (Updated)
-TOKEN = "9076321596:AAH0hTayGxF0rfUgyYasb8CPez5hNPZBEDE"
-bot = telebot.TeleBot(TOKEN, threaded=True)
+# Load credentials strictly from Environment Variables (Safe for GitHub)
+TOKEN = os.environ.get("BOT_TOKEN")
+FIREBASE_URL = os.environ.get("FIREBASE_URL")
+RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL")
 
-# Firebase Database URL
-FIREBASE_URL = "https://pranto-7b42c-default-rtdb.firebaseio.com"
+if not TOKEN:
+    raise ValueError("BOT_TOKEN environment variable is missing!")
+if not FIREBASE_URL:
+    raise ValueError("FIREBASE_URL environment variable is missing!")
 
-# Support Username
+FIREBASE_URL = FIREBASE_URL.rstrip("/")
+
+bot = telebot.TeleBot(TOKEN, threaded=False)
+
+# Support Username & Admin IDs
 support_admin_username = "@LSY0088"
-
-# Admin ID List
 ADMIN_IDS = [6954924404, 8138758919]
 
 # In-memory Database & State Management
@@ -49,83 +54,10 @@ def webhook():
         update = telebot.types.Update.de_json(json_string)
         bot.process_new_updates([update])
         return '', 200
-    else:
-        return '', 403
+    return '', 403
 # --------------------------------------------------------------------------
 
-# ----------------- FIREBASE HELPER FUNCTIONS -----------------
-def fb_get(path):
-    try:
-        response = requests.get(f"{FIREBASE_URL}/{path}.json")
-        if response.status_code == 200:
-            return response.json()
-    except Exception as e:
-        print(f"Firebase GET Error ({path}): {e}")
-    return None
-
-def fb_put(path, data):
-    try:
-        response = requests.put(f"{FIREBASE_URL}/{path}.json", json=data)
-        return response.status_code == 200
-    except Exception as e:
-        print(f"Firebase PUT Error ({path}): {e}")
-    return False
-
-def load_data_from_firebase():
-    global user_balances, user_purchases, user_deposits, user_languages, all_users, product_inventory, support_admin_username, pending_deposits, used_txids
-    
-    b = fb_get("user_balances")
-    if b: user_balances = {int(k): float(v) for k, v in b.items()}
-    
-    p = fb_get("user_purchases")
-    if p: user_purchases = {int(k): v for k, v in p.items()}
-    
-    d = fb_get("user_deposits")
-    if d: user_deposits = {int(k): v for k, v in d.items()}
-    
-    l = fb_get("user_languages")
-    if l: user_languages = {int(k): v for k, v in l.items()}
-    
-    u = fb_get("all_users")
-    if u: all_users = set(int(k) for k in u)
-    
-    inv = fb_get("product_inventory")
-    if inv: product_inventory = inv
-    
-    sup = fb_get("support_admin_username")
-    if sup: support_admin_username = sup
-
-    pd = fb_get("pending_deposits")
-    if pd: pending_deposits = pd
-
-    ut = fb_get("used_txids")
-    if ut: used_txids = set(ut)
-
-def save_user_data(user_id):
-    fb_put(f"user_balances/{user_id}", user_balances.get(user_id, 0.0))
-    fb_put(f"user_purchases/{user_id}", user_purchases.get(user_id, []))
-    fb_put(f"user_deposits/{user_id}", user_deposits.get(user_id, []))
-    fb_put(f"user_languages/{user_id}", user_languages.get(user_id, "en"))
-    fb_put(f"all_users/{user_id}", True)
-
-def save_inventory():
-    fb_put("product_inventory", product_inventory)
-
-def save_support():
-    fb_put("support_admin_username", support_admin_username)
-
-def save_pending_deposits():
-    fb_put("pending_deposits", pending_deposits)
-
-def save_used_txids():
-    fb_put("used_txids", list(used_txids))
-
-# ----------------- END FIREBASE HELPERS -----------------
-
-def is_admin(user_id):
-    return int(user_id) in ADMIN_IDS
-
-# Database Setup with Categories
+# Database Setup with Categories (Fallback if Firebase is empty)
 DEFAULT_DATABASE = {
     "support_admin": "@LSY0088",
     "product_inventory": {
@@ -133,9 +65,9 @@ DEFAULT_DATABASE = {
             "type": "countries",
             "items": {
                 "Bangladesh": {
-                    "code": "+880", 
-                    "price": 1.50, 
-                    "names": {"en": "Bangladesh", "zh": "孟加拉国"}, 
+                    "code": "+880",
+                    "price": 1.50,
+                    "names": {"en": "Bangladesh", "zh": "孟加拉国"},
                     "accounts": [], "zip_files": []
                 }
             }
@@ -179,9 +111,144 @@ DEFAULT_DATABASE = {
 
 product_inventory = DEFAULT_DATABASE["product_inventory"]
 
+# ----------------- FIREBASE HELPER FUNCTIONS -----------------
+def fb_get(path):
+    try:
+        response = requests.get(f"{FIREBASE_URL}/{path}.json", timeout=15)
+        if response.status_code == 200:
+            return response.json()
+    except Exception as e:
+        print(f"Firebase GET Error ({path}): {e}")
+    return None
+
+def fb_put(path, data):
+    try:
+        response = requests.put(f"{FIREBASE_URL}/{path}.json", json=data, timeout=20)
+        if response.status_code != 200:
+            print(f"Firebase PUT Failed ({path}): {response.status_code} - {response.text}")
+        return response.status_code == 200
+    except Exception as e:
+        print(f"Firebase PUT Error ({path}): {e}")
+    return False
+
+def load_data_from_firebase():
+    global user_balances, user_purchases, user_deposits, user_languages, all_users
+    global product_inventory, support_admin_username, pending_deposits, used_txids
+
+    b = fb_get("user_balances")
+    if b and isinstance(b, dict):
+        user_balances = {int(k): float(v) for k, v in b.items() if v is not None}
+
+    p = fb_get("user_purchases")
+    if p and isinstance(p, dict):
+        user_purchases = {int(k): v for k, v in p.items() if v is not None}
+
+    d = fb_get("user_deposits")
+    if d and isinstance(d, dict):
+        user_deposits = {int(k): v for k, v in d.items() if v is not None}
+
+    l = fb_get("user_languages")
+    if l and isinstance(l, dict):
+        user_languages = {int(k): v for k, v in l.items() if v is not None}
+
+    u = fb_get("all_users")
+    if u and isinstance(u, dict):
+        all_users = set(int(k) for k, v in u.items() if v)
+
+    pd = fb_get("pending_deposits")
+    if pd and isinstance(pd, dict):
+        pending_deposits = pd
+
+    ut = fb_get("used_txids")
+    if ut and isinstance(ut, list):
+        used_txids = set(ut)
+    elif ut and isinstance(ut, dict):
+        used_txids = set(ut.keys())
+
+    inv = fb_get("product_inventory")
+    if inv and isinstance(inv, dict):
+        for cat_key, cat_val in inv.items():
+            if isinstance(cat_val, dict):
+                if "items" not in cat_val or cat_val["items"] is None:
+                    cat_val["items"] = {}
+                for item_key, item_val in cat_val["items"].items():
+                    if "accounts" not in item_val or item_val["accounts"] is None:
+                        item_val["accounts"] = []
+                    if cat_key == "Countries":
+                        if "zip_files" not in item_val or item_val["zip_files"] is None:
+                            item_val["zip_files"] = []
+                        else:
+                            for zf in item_val["zip_files"]:
+                                if "extracted_files" not in zf or zf["extracted_files"] is None:
+                                    zf["extracted_files"] = []
+        product_inventory = inv
+
+    sup = fb_get("support_admin_username")
+    if sup:
+        support_admin_username = sup
+
+def ensure_user_registered(user_id):
+    is_new = False
+    if user_id not in all_users:
+        all_users.add(user_id)
+        is_new = True
+    if user_id not in user_balances:
+        user_balances[user_id] = 0.00
+    if user_id not in user_purchases:
+        user_purchases[user_id] = []
+    if user_id not in user_deposits:
+        user_deposits[user_id] = []
+    if is_new:
+        save_user_data(user_id)
+
+def save_user_data(user_id):
+    fb_put(f"user_balances/{user_id}", user_balances.get(user_id, 0.0))
+    fb_put(f"user_purchases/{user_id}", user_purchases.get(user_id, []))
+    fb_put(f"user_deposits/{user_id}", user_deposits.get(user_id, []))
+    fb_put(f"user_languages/{user_id}", user_languages.get(user_id, "en"))
+    fb_put(f"all_users/{user_id}", True)
+
+def save_inventory():
+    return fb_put("product_inventory", product_inventory)
+
+def save_support():
+    fb_put("support_admin_username", support_admin_username)
+
+def save_pending_deposits():
+    fb_put("pending_deposits", pending_deposits)
+
+def save_used_txids():
+    fb_put("used_txids", list(used_txids))
+
+# Load data & configure webhook immediately at startup
+print("Initializing & Loading data from Firebase...")
+load_data_from_firebase()
+
+def setup_bot_startup():
+    try:
+        commands = [telebot.types.BotCommand("/start", "Re-start Bot & Open Menu")]
+        bot.set_my_commands(commands)
+        if RENDER_URL:
+            clean_render_url = RENDER_URL.rstrip("/")
+            current_webhook = bot.get_webhook_info().url
+            target_webhook = f"{clean_render_url}/{TOKEN}"
+            if current_webhook != target_webhook:
+                bot.remove_webhook()
+                time.sleep(0.5)
+                bot.set_webhook(url=target_webhook)
+                print(f"Webhook set to: {target_webhook}")
+    except Exception as e:
+        print(f"Startup webhook/command setup warning: {e}")
+
+setup_bot_startup()
+# ----------------- END FIREBASE & STARTUP HELPERS -----------------
+
+def is_admin(user_id):
+    return int(user_id) in ADMIN_IDS
+
 LANG = {
     "en": {
-        "welcome": "📍 Main Menu\n👋 Hello {user_name}!\n\nWelcome to Telegram Bot!\n\nMain Features:\n• User Center - Manage your account\n• Buy Now - Browse and buy products (Telegram, Google Voice, Gmail, VPN)\n• Recharge - Multiple payment methods\n• Support: @LSY0088 - 24/7 online service\n• Language - Language settings\n\nTips:\nClick the buttons below to access features!",
+        "welcome": "📍 Main Menu\n👋 Hello {user_name}!\n\nWelcome to Telegram Bot!\n\nMain Features:\n• User Center - Manage your account\n• Buy Now - Browse and buy products (Telegram, Google Voice, Gmail, VPN)\n• Recharge - Multiple payment methods\n• Support: {support_user} - 24/7 online service\n• Language - Language settings\n\nTips:\nClick the buttons below to access features!",
         "products": "📁 Select a category / product folder:",
         "account": (
             "╭───────────────┬──────────────────────╮\n"
@@ -226,7 +293,7 @@ LANG = {
         "txid_used": "❌ This Order ID / TxID has already been used! Each ID can only be used once for a deposit."
     },
     "zh": {
-        "welcome": "📍 主菜单\n👋 你好 {user_name}！\n\n欢迎使用电报机器人！\n\n主要功能：\n• 用户中心 - 管理您的账户\n• 立即购买 - 浏览并购买产品（电报、谷歌Voice、Gmail、VPN）\n• 账户充值 - 多种支付方式\n• 客服支持：@LSY0088 - 7/24在线服务\n• 语言设置 - 切换语言选项\n\n提示：\n点击下方按钮访问各项功能！",
+        "welcome": "📍 主菜单\n👋 你好 {user_name}！\n\n欢迎使用电报机器人！\n\n主要功能：\n• 用户中心 - 管理您的账户\n• 立即购买 - 浏览并购买产品（电报、谷歌Voice、Gmail、VPN）\n• 账户充值 - 多种支付方式\n• 客服支持：{support_user} - 7/24在线服务\n• 语言设置 - 切换语言选项\n\n提示：\n点击下方按钮访问各项功能！",
         "products": "📁 选择分类 / 产品文件夹：",
         "account": (
             "╭───────────────┬──────────────────────╮\n"
@@ -275,10 +342,6 @@ LANG = {
 def get_lang(user_id):
     return user_languages.get(user_id, "en")
 
-def set_bot_commands(bot_instance):
-    commands = [telebot.types.BotCommand("/start", "Re-start Bot & Open Menu")]
-    bot_instance.set_my_commands(commands)
-
 def get_main_menu_keyboard(user_id):
     lang_code = get_lang(user_id)
     t = LANG[lang_code]
@@ -295,8 +358,7 @@ def get_main_menu_keyboard(user_id):
     return markup
 
 def get_select_amount_keyboard(user_id):
-    lang_code = get_lang(user_id)
-    t = LANG[lang_code]
+    t = LANG[get_lang(user_id)]
     markup = types.InlineKeyboardMarkup(row_width=3)
     markup.add(
         types.InlineKeyboardButton("2.5 USDT", callback_data="amt_2.5"),
@@ -348,8 +410,7 @@ def get_quantity_keyboard(item_key, user_id):
     return markup
 
 def get_account_keyboard(user_id):
-    lang_code = get_lang(user_id)
-    t = LANG[lang_code]
+    t = LANG[get_lang(user_id)]
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(types.InlineKeyboardButton(t["main_menu"], callback_data="go_main_menu"))
     return markup
@@ -358,19 +419,19 @@ def get_products_categories_keyboard(user_id):
     lang_code = get_lang(user_id)
     t = LANG[lang_code]
     markup = types.InlineKeyboardMarkup(row_width=2)
-    
+
     cat_icons = {
         "Countries": "📱 Telegram Accounts" if lang_code == "en" else "📱 电报账号",
         "Google_Voice": "📞 Google Voice" if lang_code == "en" else "📞 谷歌 Voice",
         "Gmail": "📧 Gmail Accounts" if lang_code == "en" else "📧 Gmail 邮箱",
         "VPN": "🔒 VPN Services" if lang_code == "en" else "🔒 VPN 服务"
     }
-    
+
     for cat_key, cat_data in product_inventory.items():
         c_name = cat_data.get("names", {}).get(lang_code, cat_key)
         display_name = cat_icons.get(cat_key, c_name)
         markup.add(types.InlineKeyboardButton(display_name, callback_data=f"cat_{cat_key}"))
-        
+
     markup.add(types.InlineKeyboardButton(t["main_menu"], callback_data="go_main_menu"))
     return markup
 
@@ -380,34 +441,26 @@ def get_category_items_keyboard(cat_key, user_id):
     markup = types.InlineKeyboardMarkup(row_width=1)
     cat_data = product_inventory.get(cat_key, {})
     items = cat_data.get("items", {})
-    
+
     for item_key, item_val in items.items():
         item_name = item_val.get("names", {}).get(lang_code, item_key)
         price = item_val.get("price", 0.0)
-        
         country_code = item_val.get("code")
-        if country_code:
-            display_name = f"{item_name} ({country_code})"
-        else:
-            display_name = item_name
-        
+        display_name = f"{item_name} ({country_code})" if country_code else item_name
+
         zip_stock = sum(len(zf.get("extracted_files", [])) for zf in item_val.get("zip_files", []))
         total_stock = len(item_val.get("accounts", [])) + zip_stock
-        
+
         btn_text = f"📦 {display_name} - ${price:.2f} [{total_stock}]"
         markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"buy_item_{cat_key}_{item_key}"))
-        
+
     markup.add(types.InlineKeyboardButton(t["back"], callback_data="back_to_products_menu"))
     return markup
 
 def get_language_keyboard(user_id):
     lang_code = get_lang(user_id)
     t = LANG[lang_code]
-    if lang_code == "en":
-        btn_text = "🇨🇳 切换到中文 (Switch to Chinese)"
-    else:
-        btn_text = "🇬🇧 Switch to English"
-        
+    btn_text = "🇨🇳 切换到中文 (Switch to Chinese)" if lang_code == "en" else "🇬🇧 Switch to English"
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(types.InlineKeyboardButton(btn_text, callback_data="lang_toggle"))
     markup.add(types.InlineKeyboardButton(t["main_menu"], callback_data="go_main_menu"))
@@ -582,7 +635,7 @@ def get_user_detail_text(target_uid, user_id=6954924404):
     dep = user_deposits.get(int(target_uid), [])
     lang = user_languages.get(int(target_uid), "en")
     is_adm = "Yes 👑" if is_admin(target_uid) else ("是 👑" if lang_code == "zh" else "No")
-    
+
     if lang_code == "en":
         return (
             f"👤 User Management\n"
@@ -614,11 +667,10 @@ def get_user_detail_text(target_uid, user_id=6954924404):
 def send_welcome(message):
     user_id = message.from_user.id
     user_states.pop(user_id, None)
-    all_users.add(user_id)
-    save_user_data(user_id)
-    user_name = message.from_user.first_name or "Support"
+    ensure_user_registered(user_id)
+    user_name = message.from_user.first_name or "User"
     lang_code = get_lang(user_id)
-    welcome_text = LANG[lang_code]["welcome"].format(user_name=user_name)
+    welcome_text = LANG[lang_code]["welcome"].format(user_name=user_name, support_user=support_admin_username)
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_menu_keyboard(user_id))
 
 @bot.message_handler(commands=['admin'])
@@ -644,13 +696,13 @@ def cancel_operation(message):
 def handle_document_uploads(message):
     user_id = message.from_user.id
     lang_code = get_lang(user_id)
-    if user_states.get(user_id) == "waiting_for_zip_file":
+    if user_states.get(user_id) == "waiting_for_zip_file" and is_admin(user_id):
         country_name = temp_admin_data.get(user_id)
         file_info = bot.get_file(message.document.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-        
+
         if "Countries" in product_inventory and country_name in product_inventory["Countries"]["items"]:
-            temp_admin_data[f"zip_bytes_{user_id}"] = list(downloaded_file)
+            temp_admin_data[f"zip_bytes_{user_id}"] = downloaded_file
             user_states[user_id] = "waiting_for_zip_2fa"
             if lang_code == "en":
                 response_msg = (
@@ -670,23 +722,74 @@ def handle_document_uploads(message):
 
 @bot.message_handler(content_types=['text', 'photo', 'video', 'document', 'audio'])
 def handle_all_messages(message):
+    global support_admin_username
     user_id = message.from_user.id
-    all_users.add(user_id)
-    if user_id not in user_balances:
-        user_balances[user_id] = 0.00
-    if user_id not in user_purchases:
-        user_purchases[user_id] = []
-    if user_id not in user_deposits:
-        user_deposits[user_id] = []
-    save_user_data(user_id)
-    
+    ensure_user_registered(user_id)
+
     lang_code = get_lang(user_id)
     t = LANG[lang_code]
     text = message.text if message.text else (message.caption if message.caption else "")
 
-    if user_states.get(user_id) == "waiting_for_new_support_username":
-        global support_admin_username
+    # 1. Main Menu Buttons Check FIRST (Prevents getting stuck in any input state)
+    is_products = text in [LANG["en"]["menu_products"], LANG["zh"]["menu_products"]]
+    is_account = text in [LANG["en"]["menu_account"], LANG["zh"]["menu_account"]]
+    is_deposit = text in [LANG["en"]["menu_deposit"], LANG["zh"]["menu_deposit"]]
+    is_support = text in [LANG["en"]["menu_support"], LANG["zh"]["menu_support"]]
+    is_lang = text in [LANG["en"]["menu_lang"], LANG["zh"]["menu_lang"]]
+    is_admin_menu = text in [LANG["en"]["menu_admin"], LANG["zh"]["menu_admin"]]
+
+    if any([is_products, is_account, is_deposit, is_support, is_lang, is_admin_menu]):
+        user_states.pop(user_id, None)
+
+        if is_lang:
+            current_lang = user_languages.get(user_id, "en")
+            if current_lang == "en":
+                user_languages[user_id] = "zh"
+                new_lang_name = "中文 (China)"
+            else:
+                user_languages[user_id] = "en"
+                new_lang_name = "English"
+            save_user_data(user_id)
+            new_lang_code = get_lang(user_id)
+            success_msg = f"🌐 Language successfully switched to: {new_lang_name}" if new_lang_code == "en" else f"🌐 语言已成功切换为：{new_lang_name}"
+            bot.send_message(message.chat.id, success_msg, reply_markup=get_main_menu_keyboard(user_id))
+            return
+        elif is_admin_menu:
+            if not is_admin(user_id):
+                unauth_txt = "❌ Unauthorized." if lang_code == "en" else "❌ 未授权。"
+                bot.send_message(message.chat.id, unauth_txt)
+                return
+            admin_w = "🛠️ Welcome to Admin Panel\n\nChoose an option below:" if lang_code == "en" else "🛠️ 欢迎来到管理面板\n\n在下方选择一个选项："
+            bot.send_message(message.chat.id, admin_w, reply_markup=get_admin_panel_keyboard(user_id))
+            return
+        elif is_products:
+            bot.send_message(message.chat.id, t["products"], reply_markup=get_products_categories_keyboard(user_id))
+            return
+        elif is_deposit:
+            user_states[user_id] = "waiting_for_deposit"
+            bot.send_message(message.chat.id, t["deposit"], reply_markup=get_select_amount_keyboard(user_id))
+            return
+        elif is_account:
+            user = message.from_user
+            username = f"@{user.username}" if user.username else "N/A"
+            name = user.first_name or "N/A"
+            balance_val = user_balances.get(user_id, 0.00)
+            purchased_total = len(user_purchases.get(user_id, []))
+            account_text = t["account"].format(user_id=user.id, username=username, name=name, balance=balance_val, purchased_total=purchased_total)
+            bot.send_message(message.chat.id, account_text, reply_markup=get_account_keyboard(user_id))
+            return
+        elif is_support:
+            support_msg = t["support"].format(support_user=support_admin_username)
+            bot.send_message(message.chat.id, support_msg)
+            return
+
+    # 2. Admin-only Input States
+    state = user_states.get(user_id, "")
+
+    if state == "waiting_for_new_support_username" and is_admin(user_id):
         new_support = text.strip()
+        if not new_support:
+            return
         if not new_support.startswith("@"):
             new_support = "@" + new_support
         support_admin_username = new_support
@@ -696,9 +799,8 @@ def handle_all_messages(message):
         bot.send_message(message.chat.id, success_sup, reply_markup=get_admin_panel_keyboard(user_id))
         return
 
-    # --- VPN PRICE EDIT HANDLER ---
-    if user_states.get(user_id, "").startswith("waiting_for_vpn_price_edit_"):
-        vpn_key = user_states.get(user_id).replace("waiting_for_vpn_price_edit_", "")
+    if state.startswith("waiting_for_vpn_price_edit_") and is_admin(user_id):
+        vpn_key = state.replace("waiting_for_vpn_price_edit_", "")
         try:
             new_price = float(text.strip())
             if "VPN" in product_inventory and vpn_key in product_inventory["VPN"]["items"]:
@@ -707,17 +809,14 @@ def handle_all_messages(message):
                 suc_msg = f"✅ VPN price successfully updated to ${new_price:.2f}!" if lang_code == "en" else f"✅ VPN 价格已成功更新为 ${new_price:.2f}！"
                 bot.send_message(message.chat.id, suc_msg, reply_markup=get_admin_panel_keyboard(user_id))
             else:
-                err_m = "❌ VPN package not found." if lang_code == "en" else "❌ 未找到该 VPN 套餐。"
-                bot.send_message(message.chat.id, err_m)
+                bot.send_message(message.chat.id, "❌ VPN package not found." if lang_code == "en" else "❌ 未找到该 VPN 套餐。")
         except ValueError:
-            err_v = "❌ Invalid price! Please enter a valid number (e.g., 5.00):" if lang_code == "en" else "❌ 价格无效！请输入有效数字（例如：5.00）："
-            bot.send_message(message.chat.id, err_v)
+            bot.send_message(message.chat.id, "❌ Invalid price! Please enter a valid number (e.g., 5.00):" if lang_code == "en" else "❌ 价格无效！请输入有效数字（例如：5.00）：")
         user_states.pop(user_id, None)
         return
 
-    # --- GMAIL PRICE EDIT HANDLER ---
-    if user_states.get(user_id, "").startswith("waiting_for_gmail_price_edit_"):
-        gmail_key = user_states.get(user_id).replace("waiting_for_gmail_price_edit_", "")
+    if state.startswith("waiting_for_gmail_price_edit_") and is_admin(user_id):
+        gmail_key = state.replace("waiting_for_gmail_price_edit_", "")
         try:
             new_price = float(text.strip())
             if "Gmail" in product_inventory and gmail_key in product_inventory["Gmail"]["items"]:
@@ -726,17 +825,14 @@ def handle_all_messages(message):
                 suc_msg = f"✅ Gmail price successfully updated to ${new_price:.2f}!" if lang_code == "en" else f"✅ Gmail 价格已成功更新为 ${new_price:.2f}！"
                 bot.send_message(message.chat.id, suc_msg, reply_markup=get_admin_panel_keyboard(user_id))
             else:
-                err_m = "❌ Gmail package not found." if lang_code == "en" else "❌ 未找到该 Gmail 套餐。"
-                bot.send_message(message.chat.id, err_m)
+                bot.send_message(message.chat.id, "❌ Gmail package not found." if lang_code == "en" else "❌ 未找到该 Gmail 套餐。")
         except ValueError:
-            err_v = "❌ Invalid price! Please enter a valid number (e.g., 0.80):" if lang_code == "en" else "❌ 价格无效！请输入有效数字（例如：0.80）："
-            bot.send_message(message.chat.id, err_v)
+            bot.send_message(message.chat.id, "❌ Invalid price! Please enter a valid number (e.g., 0.80):" if lang_code == "en" else "❌ 价格无效！请输入有效数字（例如：0.80）：")
         user_states.pop(user_id, None)
         return
 
-    # --- GOOGLE VOICE PRICE EDIT HANDLER ---
-    if user_states.get(user_id, "").startswith("waiting_for_gv_price_edit_"):
-        gv_key = user_states.get(user_id).replace("waiting_for_gv_price_edit_", "")
+    if state.startswith("waiting_for_gv_price_edit_") and is_admin(user_id):
+        gv_key = state.replace("waiting_for_gv_price_edit_", "")
         try:
             new_price = float(text.strip())
             if "Google_Voice" in product_inventory and gv_key in product_inventory["Google_Voice"]["items"]:
@@ -745,41 +841,36 @@ def handle_all_messages(message):
                 suc_msg = f"✅ Google Voice price successfully updated to ${new_price:.2f}!" if lang_code == "en" else f"✅ 谷歌Voice 价格已成功更新为 ${new_price:.2f}！"
                 bot.send_message(message.chat.id, suc_msg, reply_markup=get_admin_panel_keyboard(user_id))
             else:
-                err_m = "❌ Google Voice package not found." if lang_code == "en" else "❌ 未找到该谷歌Voice套餐。"
-                bot.send_message(message.chat.id, err_m)
+                bot.send_message(message.chat.id, "❌ Google Voice package not found." if lang_code == "en" else "❌ 未找到该谷歌Voice套餐。")
         except ValueError:
-            err_v = "❌ Invalid price! Please enter a valid number (e.g., 2.50):" if lang_code == "en" else "❌ 价格无效！请输入有效数字（例如：2.50）："
-            bot.send_message(message.chat.id, err_v)
+            bot.send_message(message.chat.id, "❌ Invalid price! Please enter a valid number (e.g., 2.50):" if lang_code == "en" else "❌ 价格无效！请输入有效数字（例如：2.50）：")
         user_states.pop(user_id, None)
         return
 
-    # --- VPN ADD HANDLERS ---
-    if user_states.get(user_id) == "waiting_for_vpn_name":
-        vpn_name = text.strip()
-        temp_admin_data[f"vpn_name_{user_id}"] = vpn_name
+    if state == "waiting_for_vpn_name" and is_admin(user_id):
+        temp_admin_data[f"vpn_name_{user_id}"] = text.strip()
         user_states[user_id] = "waiting_for_vpn_duration"
         prompt_dur = "⏱️ Now enter the duration (e.g., 1 Month, 7 Days):" if lang_code == "en" else "⏱️ 现在输入有效时间（例如：1 Month 或 7 Days）："
         bot.send_message(message.chat.id, prompt_dur)
         return
 
-    if user_states.get(user_id) == "waiting_for_vpn_duration":
-        vpn_duration = text.strip()
-        temp_admin_data[f"vpn_duration_{user_id}"] = vpn_duration
+    if state == "waiting_for_vpn_duration" and is_admin(user_id):
+        temp_admin_data[f"vpn_duration_{user_id}"] = text.strip()
         user_states[user_id] = "waiting_for_vpn_price"
         prompt_prc = "💵 Now enter the price in USD (e.g., 5.00):" if lang_code == "en" else "💵 现在输入美元价格（例如：5.00）："
         bot.send_message(message.chat.id, prompt_prc)
         return
 
-    if user_states.get(user_id) == "waiting_for_vpn_price":
+    if state == "waiting_for_vpn_price" and is_admin(user_id):
         try:
             vpn_price = float(text.strip())
             vpn_name = temp_admin_data.get(f"vpn_name_{user_id}")
             vpn_duration = temp_admin_data.get(f"vpn_duration_{user_id}")
             vpn_key = f"VPN_{int(time.time())}"
-            
+
             if "VPN" not in product_inventory:
                 product_inventory["VPN"] = {"type": "digital_goods", "names": {"en": "VPN Services", "zh": "VPN 服务"}, "items": {}}
-            
+
             product_inventory["VPN"]["items"][vpn_key] = {
                 "price": vpn_price,
                 "duration": vpn_duration,
@@ -791,24 +882,19 @@ def handle_all_messages(message):
             suc_vpn = f"✅ VPN package '{vpn_name} ({vpn_duration})' added successfully!" if lang_code == "en" else f"✅ VPN 套餐 '{vpn_name} ({vpn_duration})' 添加成功！"
             bot.send_message(message.chat.id, suc_vpn, reply_markup=get_admin_panel_keyboard(user_id))
         except ValueError:
-            err_val = "❌ Invalid price! Please enter a valid number (e.g., 5.00):" if lang_code == "en" else "❌ 价格无效！请输入有效数字（例如：5.00）："
-            bot.send_message(message.chat.id, err_val)
+            bot.send_message(message.chat.id, "❌ Invalid price! Please enter a valid number (e.g., 5.00):" if lang_code == "en" else "❌ 价格无效！请输入有效数字（例如：5.00）：")
         return
 
-    # --- VPN STOCK HANDLERS ---
-    if user_states.get(user_id, "").startswith("waiting_for_vpn_stock_"):
-        vpn_key = user_states.get(user_id).replace("waiting_for_vpn_stock_", "")
+    if state.startswith("waiting_for_vpn_stock_") and is_admin(user_id):
+        vpn_key = state.replace("waiting_for_vpn_stock_", "")
         lines = text.strip().split("\n")
         added_count = 0
         for line in lines:
             parts = line.strip().split(" ", 1)
             if len(parts) >= 2:
-                acc_info = parts[0]
-                acc_pass = parts[1]
+                acc_info, acc_pass = parts[0], parts[1]
                 if "VPN" in product_inventory and vpn_key in product_inventory["VPN"]["items"]:
-                    if "accounts" not in product_inventory["VPN"]["items"][vpn_key]:
-                        product_inventory["VPN"]["items"][vpn_key]["accounts"] = []
-                    product_inventory["VPN"]["items"][vpn_key]["accounts"].append({"info": acc_info, "password": acc_pass})
+                    product_inventory["VPN"]["items"][vpn_key].setdefault("accounts", []).append({"info": acc_info, "password": acc_pass})
                     added_count += 1
         save_inventory()
         user_states.pop(user_id, None)
@@ -816,37 +902,33 @@ def handle_all_messages(message):
         bot.send_message(message.chat.id, suc_stk, reply_markup=get_admin_panel_keyboard(user_id))
         return
 
-    # --- GMAIL / GV ADD HANDLERS ---
-    if user_states.get(user_id) == "waiting_for_gg_type":
+    if state == "waiting_for_gg_type" and is_admin(user_id):
         gg_choice = text.strip()
         if "1" in gg_choice:
             temp_admin_data[f"gg_cat_{user_id}"] = "Gmail"
-            p_gmail = "📧 Enter Gmail package name (e.g., Old Aged Gmail):" if lang_code == "en" else "📧 输入 Gmail 套餐名称（例如：老号 Gmail）："
-            bot.send_message(message.chat.id, p_gmail)
+            bot.send_message(message.chat.id, "📧 Enter Gmail package name (e.g., Old Aged Gmail):" if lang_code == "en" else "📧 输入 Gmail 套餐名称（例如：老号 Gmail）：")
         else:
             temp_admin_data[f"gg_cat_{user_id}"] = "Google_Voice"
-            p_gv = "📞 Enter Google Voice package name (e.g., US Google Voice):" if lang_code == "en" else "📞 输入谷歌Voice套餐名称（例如：美国谷歌Voice）："
-            bot.send_message(message.chat.id, p_gv)
+            bot.send_message(message.chat.id, "📞 Enter Google Voice package name (e.g., US Google Voice):" if lang_code == "en" else "📞 输入谷歌Voice套餐名称（例如：美国谷歌Voice）：")
         user_states[user_id] = "waiting_for_gg_name"
         return
 
-    if user_states.get(user_id) == "waiting_for_gg_name":
+    if state == "waiting_for_gg_name" and is_admin(user_id):
         temp_admin_data[f"gg_name_{user_id}"] = text.strip()
         user_states[user_id] = "waiting_for_gg_price"
-        p_prc2 = "💵 Enter price in USD (e.g., 0.80):" if lang_code == "en" else "💵 输入美元价格（例如：0.80）："
-        bot.send_message(message.chat.id, p_prc2)
+        bot.send_message(message.chat.id, "💵 Enter price in USD (e.g., 0.80):" if lang_code == "en" else "💵 输入美元价格（例如：0.80）：")
         return
 
-    if user_states.get(user_id) == "waiting_for_gg_price":
+    if state == "waiting_for_gg_price" and is_admin(user_id):
         try:
             price = float(text.strip())
             cat = temp_admin_data.get(f"gg_cat_{user_id}")
             name = temp_admin_data.get(f"gg_name_{user_id}")
             key = f"{cat}_{int(time.time())}"
-            
+
             if cat not in product_inventory:
                 product_inventory[cat] = {"type": "digital_goods", "names": {"en": cat, "zh": cat}, "items": {}}
-                
+
             product_inventory[cat]["items"][key] = {
                 "price": price,
                 "names": {"en": name, "zh": name},
@@ -857,13 +939,11 @@ def handle_all_messages(message):
             suc_cat = f"✅ Category '{name}' created successfully!" if lang_code == "en" else f"✅ 分类 '{name}' 创建成功！"
             bot.send_message(message.chat.id, suc_cat, reply_markup=get_admin_panel_keyboard(user_id))
         except ValueError:
-            err_p2 = "❌ Invalid price! Please enter numbers only:" if lang_code == "en" else "❌ 价格无效！请输入纯数字："
-            bot.send_message(message.chat.id, err_p2)
+            bot.send_message(message.chat.id, "❌ Invalid price! Please enter numbers only:" if lang_code == "en" else "❌ 价格无效！请输入纯数字：")
         return
 
-    # --- GMAIL / GV STOCK ADD ---
-    if user_states.get(user_id, "").startswith("waiting_for_gg_stock_"):
-        key = user_states.get(user_id).replace("waiting_for_gg_stock_", "")
+    if state.startswith("waiting_for_gg_stock_") and is_admin(user_id):
+        key = state.replace("waiting_for_gg_stock_", "")
         lines = text.strip().split("\n")
         added_count = 0
         for line in lines:
@@ -872,16 +952,14 @@ def handle_all_messages(message):
                 email = parts[0]
                 password = parts[1]
                 recovery = parts[2] if len(parts) > 2 else "N/A"
-                
+
                 target_cat = None
                 for cat_k in ["Gmail", "Google_Voice"]:
                     if cat_k in product_inventory and key in product_inventory[cat_k]["items"]:
                         target_cat = cat_k
                         break
                 if target_cat:
-                    if "accounts" not in product_inventory[target_cat]["items"][key]:
-                        product_inventory[target_cat]["items"][key]["accounts"] = []
-                    product_inventory[target_cat]["items"][key]["accounts"].append({
+                    product_inventory[target_cat]["items"][key].setdefault("accounts", []).append({
                         "info": email,
                         "password": password,
                         "recovery": recovery
@@ -893,18 +971,185 @@ def handle_all_messages(message):
         bot.send_message(message.chat.id, suc_accs, reply_markup=get_admin_panel_keyboard(user_id))
         return
 
-    if user_states.get(user_id, "").startswith("waiting_for_txid_"):
-        order_id = user_states.get(user_id).replace("waiting_for_txid_", "")
+    if state == "waiting_for_mgmt_search" and is_admin(user_id):
         user_states.pop(user_id, None)
-        
-        txid_input = text.strip() if text else f"Photo_Proof_{message.message_id}"
-        
-        if txid_input in used_txids:
-            bot.send_message(message.chat.id, t["txid_used"], reply_markup=get_main_menu_keyboard(user_id))
+        try:
+            target = int(text.strip())
+        except Exception:
+            bot.send_message(message.chat.id, "❌ Invalid User ID! Please enter numbers only (e.g., 123456789):" if lang_code == "en" else "❌ 用户 ID 无效！请输入纯数字（例如：123456789）：", reply_markup=get_admin_panel_keyboard(user_id))
             return
-            
-        used_txids.add(txid_input)
+        ensure_user_registered(target)
+        bot.send_message(message.chat.id, get_user_detail_text(target, user_id), reply_markup=get_user_detail_keyboard(target, user_id))
+        return
+
+    if state.startswith("waiting_for_mgmt_bal_") and is_admin(user_id):
+        parts = state.replace("waiting_for_mgmt_bal_", "").split("_")
+        action = parts[0]
+        target_uid = int(parts[1])
+        try:
+            amount = float(text.strip())
+        except Exception:
+            bot.send_message(message.chat.id, "❌ Invalid amount! Please enter a valid number (e.g., 10 or 5.50):" if lang_code == "en" else "❌ 金额无效！请输入有效数字（例如：10 或 5.50）：")
+            return
+        old_bal = user_balances.get(target_uid, 0.0)
+        if action == "add":
+            new_bal = old_bal + amount
+            msg_action = f"➕ Added ${amount:.2f}" if lang_code == "en" else f"➕ 已增加 ${amount:.2f}"
+        elif action == "sub":
+            new_bal = max(0.0, old_bal - amount)
+            msg_action = f"➖ Subtracted ${amount:.2f}" if lang_code == "en" else f"➖ 已扣除 ${amount:.2f}"
+        elif action == "set":
+            new_bal = amount
+            msg_action = f"✏️ Set to ${amount:.2f}" if lang_code == "en" else f"✏️ 已设置为 ${amount:.2f}"
+        else:
+            new_bal = old_bal
+            msg_action = ""
+        user_balances[target_uid] = round(new_bal, 2)
+        save_user_data(target_uid)
+        user_states.pop(user_id, None)
+
+        upd_bal_msg = (
+            f"✅ Balance Updated!\n\n👤 User ID: {target_uid}\n{msg_action}\n💰 Old Balance: ${old_bal:.2f}\n💰 New Balance: ${new_bal:.2f}"
+            if lang_code == "en" else
+            f"✅ 余额已更新！\n\n👤 用户 ID: {target_uid}\n{msg_action}\n💰 原余额: ${old_bal:.2f}\n💰 新余额: ${new_bal:.2f}"
+        )
+        bot.send_message(message.chat.id, upd_bal_msg, reply_markup=get_user_detail_keyboard(target_uid, user_id))
+        try:
+            u_msg = f"💰 Your balance has been updated by Admin!\n\nNew Balance: ${new_bal:.2f}" if lang_code == "en" else f"💰 管理员已更新您的账户余额！\n\n新余额: ${new_bal:.2f}"
+            bot.send_message(target_uid, u_msg)
+        except Exception:
+            pass
+        return
+
+    if state == "waiting_for_new_country" and is_admin(user_id):
+        c_name = text.strip().capitalize()
+        if "Countries" in product_inventory and c_name not in product_inventory["Countries"]["items"]:
+            temp_admin_data[user_id] = c_name
+            user_states[user_id] = "waiting_for_country_code"
+            bot.send_message(message.chat.id, f"📱 Now enter country phone code for Telegram {c_name} (e.g., +880):" if lang_code == "en" else f"📱 现在为电报国家 {c_name} 输入电话区号（例如：+880）：")
+        else:
+            bot.send_message(message.chat.id, f"⚠️ Telegram country {c_name} already exists." if lang_code == "en" else f"⚠️ 电报国家 {c_name} 已存在。")
+            user_states.pop(user_id, None)
+        return
+
+    if state == "waiting_for_country_code" and is_admin(user_id):
+        c_code = text.strip()
+        c_name = temp_admin_data.get(user_id)
+        if c_name:
+            product_inventory.setdefault("Countries", {"type": "countries", "items": {}})["items"][c_name] = {
+                "code": c_code,
+                "price": 1.00,
+                "names": {"en": c_name, "zh": c_name},
+                "accounts": [],
+                "zip_files": []
+            }
+            save_inventory()
+            bot.send_message(message.chat.id, f"✅ Telegram Country {c_name} ({c_code}) added successfully!" if lang_code == "en" else f"✅ 电报国家 {c_name} ({c_code}) 添加成功！", reply_markup=get_admin_panel_keyboard(user_id))
+        user_states.pop(user_id, None)
+        return
+
+    if state.startswith("waiting_for_edit_price_") and is_admin(user_id):
+        country_name = state.replace("waiting_for_edit_price_", "")
+        try:
+            new_price = float(text.strip())
+            if "Countries" in product_inventory and country_name in product_inventory["Countries"]["items"]:
+                product_inventory["Countries"]["items"][country_name]["price"] = new_price
+                save_inventory()
+                bot.send_message(message.chat.id, f"✅ Price for Telegram country {country_name} successfully updated to ${new_price:.2f}!" if lang_code == "en" else f"✅ 电报国家 {country_name} 的价格已成功更新为 ${new_price:.2f}！", reply_markup=get_admin_panel_keyboard(user_id))
+            else:
+                bot.send_message(message.chat.id, "❌ Country not found." if lang_code == "en" else "❌ 未找到该国家。")
+        except ValueError:
+            bot.send_message(message.chat.id, "❌ Invalid price! Please enter a valid number (e.g., 1.50 or 2):" if lang_code == "en" else "❌ 价格无效！请输入有效数字（例如：1.50 或 2）：")
+        user_states.pop(user_id, None)
+        return
+
+    if state.startswith("waiting_for_rename_country_") and is_admin(user_id):
+        old_country = state.replace("waiting_for_rename_country_", "")
+        new_country = text.strip().capitalize()
+        proto_items = product_inventory.get("Countries", {}).get("items", {})
+        if new_country in proto_items:
+            bot.send_message(message.chat.id, f"⚠️ Country {new_country} already exists!" if lang_code == "en" else f"⚠️ 国家 {new_country} 已存在！")
+        elif old_country in proto_items:
+            proto_items[new_country] = proto_items.pop(old_country)
+            if "names" in proto_items[new_country]:
+                proto_items[new_country]["names"]["en"] = new_country
+                proto_items[new_country]["names"]["zh"] = new_country
+            save_inventory()
+            bot.send_message(message.chat.id, f"✅ Successfully renamed country {old_country} to {new_country}!" if lang_code == "en" else f"✅ 成功将国家 {old_country} 重命名为 {new_country}！", reply_markup=get_admin_panel_keyboard(user_id))
+        else:
+            bot.send_message(message.chat.id, "❌ Country not found." if lang_code == "en" else "❌ 未找到该国家。")
+        user_states.pop(user_id, None)
+        return
+
+    if state == "waiting_for_broadcast_message" and is_admin(user_id):
+        user_states.pop(user_id, None)
+        success_count = 0
+        fail_count = 0
+        bot.send_message(message.chat.id, "⏳ Broadcasting message to all users, please wait..." if lang_code == "en" else "⏳ 正在向所有用户广播消息，请稍候...")
+        for uid in list(all_users):
+            try:
+                bot.copy_message(chat_id=uid, from_chat_id=message.chat.id, message_id=message.message_id)
+                success_count += 1
+            except Exception:
+                fail_count += 1
+        bc_res = (
+            f"✅ Broadcast Completed!\n\n👥 Successfully sent: {success_count} users\n❌ Failed (Blocked bot): {fail_count} users"
+            if lang_code == "en" else
+            f"✅ 广播完成！\n\n👥 成功发送: {success_count} 名用户\n❌ 发送失败（已拉黑机器人）: {fail_count} 名用户"
+        )
+        bot.send_message(message.chat.id, bc_res, reply_markup=get_main_menu_keyboard(user_id))
+        return
+
+    if state == "waiting_for_zip_2fa" and is_admin(user_id):
+        tfa_code = text.strip()
+        country_name = temp_admin_data.get(user_id)
+        raw_zip_bytes = temp_admin_data.get(f"zip_bytes_{user_id}")
+        if country_name and raw_zip_bytes and tfa_code:
+            zip_bytes = io.BytesIO(raw_zip_bytes)
+            try:
+                with pyzipper.AESZipFile(zip_bytes, 'r') as zf:
+                    zf.setpassword(tfa_code.encode('utf-8'))
+                    file_list = zf.namelist()
+                    valid_files = [f for f in file_list if not f.endswith('/')]
+                    if not valid_files:
+                        bot.send_message(message.chat.id, "❌ The ZIP archive contains no valid files.", reply_markup=get_admin_panel_keyboard(user_id))
+                    else:
+                        product_inventory["Countries"]["items"][country_name].setdefault("zip_files", []).append({
+                            "zip_b64": base64.b64encode(raw_zip_bytes).decode('utf-8'),
+                            "2fa": tfa_code,
+                            "extracted_files": valid_files
+                        })
+                        saved = save_inventory()
+                        if saved:
+                            suc_z = (
+                                f"✅ Successfully added & saved ZIP stock for Telegram country {country_name}!\n📁 Total valid files: {len(valid_files)}\n🔐 Password / 2FA: {tfa_code}"
+                                if lang_code == "en" else
+                                f"✅ 成功为电报国家 {country_name} 添加并保存 ZIP 库存！\n📁 有效文件总数: {len(valid_files)}\n🔐 密码 / 2FA: {tfa_code}"
+                            )
+                            bot.send_message(message.chat.id, suc_z, reply_markup=get_admin_panel_keyboard(user_id))
+                        else:
+                            bot.send_message(message.chat.id, "⚠️ Failed to save to Firebase! Please check file size.", reply_markup=get_admin_panel_keyboard(user_id))
+            except Exception as e:
+                err_pw = f"❌ Password Error!\nError details: {str(e)}" if lang_code == "en" else f"❌ 密码错误！\n错误详情: {str(e)}"
+                bot.send_message(message.chat.id, err_pw, reply_markup=get_admin_panel_keyboard(user_id))
+        user_states.pop(user_id, None)
+        temp_admin_data.pop(user_id, None)
+        temp_admin_data.pop(f"zip_bytes_{user_id}", None)
+        return
+
+    # 3. User Input States
+    if state.startswith("waiting_for_txid_"):
+        order_id = state.replace("waiting_for_txid_", "")
+        txid_input = text.strip() if text else f"Photo_Proof_{message.message_id}"
+
+        if txid_input.lower() in used_txids:
+            bot.send_message(message.chat.id, t["txid_used"], reply_markup=get_main_menu_keyboard(user_id))
+            user_states.pop(user_id, None)
+            return
+
+        used_txids.add(txid_input.lower())
         save_used_txids()
+        user_states.pop(user_id, None)
 
         dep_amt = user_amounts.get(user_id, 2.50)
         dep_id = f"dep_{user_id}_{int(time.time())}"
@@ -916,16 +1161,14 @@ def handle_all_messages(message):
         }
         save_pending_deposits()
 
-        admin_id = ADMIN_IDS[0] if ADMIN_IDS else 6954924404
+        admin_id = ADMIN_IDS[0]
         user_name = message.from_user.first_name or "N/A"
         username = f"@{message.from_user.username}" if message.from_user.username else "N/A"
-        
+
         admin_markup = types.InlineKeyboardMarkup(row_width=2)
-        accept_btn_txt = "✅ Accept" if lang_code == "en" else "✅ 接受"
-        reject_btn_txt = "❌ Reject" if lang_code == "en" else "❌ 拒绝"
         admin_markup.add(
-            types.InlineKeyboardButton(accept_btn_txt, callback_data=f"dep_accept_{dep_id}"),
-            types.InlineKeyboardButton(reject_btn_txt, callback_data=f"dep_reject_{dep_id}")
+            types.InlineKeyboardButton("✅ Accept", callback_data=f"dep_accept_{dep_id}"),
+            types.InlineKeyboardButton("❌ Reject", callback_data=f"dep_reject_{dep_id}")
         )
 
         admin_notification = (
@@ -948,280 +1191,38 @@ def handle_all_messages(message):
         bot.send_message(message.chat.id, t["proof_sent"], reply_markup=get_main_menu_keyboard(user_id))
         return
 
-    if text in [LANG["en"]["menu_lang"], LANG["zh"]["menu_lang"]]:
-        user_states.pop(user_id, None)
-        current_lang = user_languages.get(user_id, "en")
-        if current_lang == "en":
-            user_languages[user_id] = "zh"
-            new_lang_name = "中文 (China)"
-        else:
-            user_languages[user_id] = "en"
-            new_lang_name = "English"
-            
-        save_user_data(user_id)
-        new_lang_code = get_lang(user_id)
-        success_msg = f"🌐 Language successfully switched to: {new_lang_name}" if new_lang_code == "en" else f"🌐 语言已成功切换为：{new_lang_name}"
-        bot.send_message(message.chat.id, success_msg, reply_markup=get_main_menu_keyboard(user_id))
-        return
-
-    if user_states.get(user_id) == "waiting_for_mgmt_search":
-        user_states.pop(user_id, None)
-        try:
-            target = int(text.strip())
-        except:
-            err_uid = "❌ Invalid User ID! Please enter numbers only (e.g., 123456789):" if lang_code == "en" else "❌ 用户 ID 无效！请输入纯数字（例如：123456789）："
-            bot.send_message(message.chat.id, err_uid, reply_markup=get_admin_panel_keyboard(user_id))
-            return
-        if target not in all_users:
-            all_users.add(target)
-            if target not in user_balances:
-                user_balances[target] = 0.0
-            save_user_data(target)
-        bot.send_message(message.chat.id, get_user_detail_text(target, user_id), reply_markup=get_user_detail_keyboard(target, user_id))
-        return
-
-    if user_states.get(user_id, "").startswith("waiting_for_mgmt_bal_"):
-        state = user_states.get(user_id)
-        parts = state.replace("waiting_for_mgmt_bal_", "").split("_")
-        action = parts[0]
-        target_uid = int(parts[1])
-        try:
-            amount = float(text.strip())
-        except:
-            err_amt = "❌ Invalid amount! Please enter a valid number (e.g., 10 or 5.50):" if lang_code == "en" else "❌ 金额无效！请输入有效数字（例如：10 或 5.50）："
-            bot.send_message(message.chat.id, err_amt)
-            return
-        old_bal = user_balances.get(target_uid, 0.0)
-        if action == "add":
-            new_bal = old_bal + amount
-            msg_action = f"➕ Added ${amount:.2f}" if lang_code == "en" else f"➕ 已增加 ${amount:.2f}"
-        elif action == "sub":
-            new_bal = old_bal - amount
-            if new_bal < 0:
-                new_bal = 0.0
-            msg_action = f"➖ Subtracted ${amount:.2f}" if lang_code == "en" else f"➖ 已扣除 ${amount:.2f}"
-        elif action == "set":
-            new_bal = amount
-            msg_action = f"✏️ Set to ${amount:.2f}" if lang_code == "en" else f"✏️ 已设置为 ${amount:.2f}"
-        else:
-            new_bal = old_bal
-            msg_action = ""
-        user_balances[target_uid] = round(new_bal, 2)
-        save_user_data(target_uid)
-        user_states.pop(user_id, None)
-        
-        if lang_code == "en":
-            upd_bal_msg = f"✅ Balance Updated!\n\n👤 User ID: {target_uid}\n{msg_action}\n💰 Old Balance: ${old_bal:.2f}\n💰 New Balance: ${new_bal:.2f}"
-        else:
-            upd_bal_msg = f"✅ 余额已更新！\n\n👤 用户 ID: {target_uid}\n{msg_action}\n💰 原余额: ${old_bal:.2f}\n💰 新余额: ${new_bal:.2f}"
-            
-        bot.send_message(
-            message.chat.id,
-            upd_bal_msg,
-            reply_markup=get_user_detail_keyboard(target_uid, user_id)
-        )
-        try:
-            u_msg = f"💰 Your balance has been updated by Admin!\n\nNew Balance: ${new_bal:.2f}" if lang_code == "en" else f"💰 管理员已更新您的账户余额！\n\n新余额: ${new_bal:.2f}"
-            bot.send_message(target_uid, u_msg)
-        except:
-            pass
-        return
-
-    if user_states.get(user_id) == "waiting_for_new_country":
-        c_name = text.strip().capitalize()
-        if "Countries" in product_inventory and c_name not in product_inventory["Countries"]["items"]:
-            temp_admin_data[user_id] = c_name
-            user_states[user_id] = "waiting_for_country_code"
-            p_code = f"📱 Now enter country phone code for Telegram {c_name} (e.g., +880):" if lang_code == "en" else f"📱 现在为电报国家 {c_name} 输入电话区号（例如：+880）："
-            bot.send_message(message.chat.id, p_code)
-        else:
-            exist_msg = f"⚠️ Telegram country {c_name} already exists." if lang_code == "en" else f"⚠️ 电报国家 {c_name} 已存在。"
-            bot.send_message(message.chat.id, exist_msg)
-            user_states.pop(user_id, None)
-        return
-
-    if user_states.get(user_id) == "waiting_for_country_code":
-        c_code = text.strip()
-        c_name = temp_admin_data.get(user_id)
-        if c_name:
-            if "Countries" not in product_inventory:
-                product_inventory["Countries"] = {"type": "countries", "items": {}}
-            product_inventory["Countries"]["items"][c_name] = {
-                "code": c_code, 
-                "price": 1.00, 
-                "names": {"en": c_name, "zh": c_name}, 
-                "accounts": [], 
-                "zip_files": []
-            }
-            save_inventory()
-            suc_c = f"✅ Telegram Country {c_name} ({c_code}) added successfully!" if lang_code == "en" else f"✅ 电报国家 {c_name} ({c_code}) 添加成功！"
-            bot.send_message(message.chat.id, suc_c, reply_markup=get_admin_panel_keyboard(user_id))
-        user_states.pop(user_id, None)
-        return
-
-    if user_states.get(user_id, "").startswith("waiting_for_edit_price_"):
-        country_name = user_states.get(user_id).replace("waiting_for_edit_price_", "")
-        try:
-            new_price = float(text.strip())
-            if "Countries" in product_inventory and country_name in product_inventory["Countries"]["items"]:
-                product_inventory["Countries"]["items"][country_name]["price"] = new_price
-                save_inventory()
-                suc_p = f"✅ Price for Telegram country {country_name} successfully updated to ${new_price:.2f}!" if lang_code == "en" else f"✅ 电报国家 {country_name} 的价格已成功更新为 ${new_price:.2f}！"
-                bot.send_message(message.chat.id, suc_p, reply_markup=get_admin_panel_keyboard(user_id))
-            else:
-                err_cn = "❌ Country not found." if lang_code == "en" else "❌ 未找到该国家。"
-                bot.send_message(message.chat.id, err_cn)
-        except ValueError:
-            err_pr = "❌ Invalid price! Please enter a valid number (e.g., 1.50 or 2):" if lang_code == "en" else "❌ 价格无效！请输入有效数字（例如：1.50 或 2）："
-            bot.send_message(message.chat.id, err_pr)
-        user_states.pop(user_id, None)
-        return
-
-    if user_states.get(user_id, "").startswith("waiting_for_rename_country_"):
-        old_country = user_states.get(user_id).replace("waiting_for_rename_country_", "")
-        new_country = text.strip().capitalize()
-        proto_items = product_inventory.get("Countries", {}).get("items", {})
-        if new_country in proto_items:
-            warn_exist = f"⚠️ Country {new_country} already exists!" if lang_code == "en" else f"⚠️ 国家 {new_country} 已存在！"
-            bot.send_message(message.chat.id, warn_exist)
-        elif old_country in proto_items:
-            proto_items[new_country] = proto_items.pop(old_country)
-            save_inventory()
-            suc_rn = f"✅ Successfully renamed country {old_country} to {new_country}!" if lang_code == "en" else f"✅ 成功将国家 {old_country} 重命名为 {new_country}！"
-            bot.send_message(message.chat.id, suc_rn, reply_markup=get_admin_panel_keyboard(user_id))
-        else:
-            err_cn2 = "❌ Country not found." if lang_code == "en" else "❌ 未找到该国家。"
-            bot.send_message(message.chat.id, err_cn2)
-        user_states.pop(user_id, None)
-        return
-
-    if user_states.get(user_id) == "waiting_for_broadcast_message":
-        user_states.pop(user_id, None)
-        success_count = 0
-        fail_count = 0
-        wait_bc = "⏳ Broadcasting message to all users, please wait..." if lang_code == "en" else "⏳ 正在向所有用户广播消息，请稍候..."
-        bot.send_message(message.chat.id, wait_bc)
-        for uid in all_users:
-            try:
-                bot.copy_message(chat_id=uid, from_chat_id=message.chat.id, message_id=message.message_id)
-                success_count += 1
-            except Exception:
-                fail_count += 1
-        if lang_code == "en":
-            bc_res = f"✅ Broadcast Completed!\n\n👥 Successfully sent: {success_count} users\n❌ Failed (Blocked bot): {fail_count} users"
-        else:
-            bc_res = f"✅ 广播完成！\n\n👥 成功发送: {success_count} 名用户\n❌ 发送失败（已拉黑机器人）: {fail_count} 名用户"
-        bot.send_message(message.chat.id, bc_res, reply_markup=get_main_menu_keyboard(user_id))
-        return
-
-    if user_states.get(user_id, "").startswith("waiting_for_custom_qty_"):
-        item_key = user_states.get(user_id).replace("waiting_for_custom_qty_", "")
+    if state.startswith("waiting_for_custom_qty_"):
+        item_key = state.replace("waiting_for_custom_qty_", "")
         try:
             qty = int(text.strip())
             if qty <= 0:
-                err_q = "❌ Please enter a valid quantity greater than 0:" if lang_code == "en" else "❌ 请输入大于 0 的有效数量："
-                bot.send_message(message.chat.id, err_q)
+                bot.send_message(message.chat.id, "❌ Please enter a valid quantity greater than 0:" if lang_code == "en" else "❌ 请输入大于 0 的有效数量：")
                 return
             user_states.pop(user_id, None)
             process_product_purchase(message.chat.id, user_id, item_key, qty)
         except ValueError:
-            err_iq = "❌ Invalid number! Please enter a valid integer (e.g., 2, 5):" if lang_code == "en" else "❌ 数字无效！请输入有效的整数（例如：2, 5）："
-            bot.send_message(message.chat.id, err_iq)
+            bot.send_message(message.chat.id, "❌ Invalid number! Please enter a valid integer (e.g., 2, 5):" if lang_code == "en" else "❌ 数字无效！请输入有效的整数（例如：2, 5）：")
         return
 
-    if user_states.get(user_id) == "waiting_for_custom_amount":
+    if state == "waiting_for_custom_amount":
         try:
             custom_amount = float(text.strip())
             min_limit = 2.50
             if custom_amount < min_limit:
-                err_min = f"❌ Minimum deposit amount is ${min_limit:.2f}. Please enter again:" if lang_code == "en" else f"❌ 最低充值金额为 ${min_limit:.2f}。请重新输入："
-                bot.send_message(message.chat.id, err_min)
+                bot.send_message(message.chat.id, f"❌ Minimum deposit amount is ${min_limit:.2f}. Please enter again:" if lang_code == "en" else f"❌ 最低充值金额为 ${min_limit:.2f}。请重新输入：")
                 return
             user_amounts[user_id] = custom_amount
             user_states[user_id] = "waiting_for_payment_method"
             payment_text = f"💰 Selected Amount: ${custom_amount:.2f}\n\nPlease select your preferred payment method:" if lang_code == "en" else f"💰 已选金额： ${custom_amount:.2f}\n\n请选择您的首选付款方式："
             bot.send_message(message.chat.id, payment_text, reply_markup=get_payment_methods_keyboard(user_id))
         except ValueError:
-            err_ia = "❌ Invalid amount. Please enter a valid number (e.g., 5 or 10):" if lang_code == "en" else "❌ 金额无效。请输入有效数字（例如：5 或 10）："
-            bot.send_message(message.chat.id, err_ia)
+            bot.send_message(message.chat.id, "❌ Invalid amount. Please enter a valid number (e.g., 5 or 10):" if lang_code == "en" else "❌ 金额无效。请输入有效数字（例如：5 或 10）：")
         return
-
-    if user_states.get(user_id) == "waiting_for_payment_proof":
-        bot.send_message(message.chat.id, t["proof_sent"], reply_markup=get_main_menu_keyboard(user_id))
-        user_states.pop(user_id, None)
-        temp_admin_data.pop(f"order_info_{user_id}", None)
-        return
-
-    if user_states.get(user_id) == "waiting_for_zip_2fa":
-        tfa_code = text.strip() if text else ""
-        country_name = temp_admin_data.get(user_id)
-        zip_bytes_list = temp_admin_data.get(f"zip_bytes_{user_id}")
-        if country_name and zip_bytes_list and tfa_code:
-            zip_bytes = io.BytesIO(bytes(zip_bytes_list))
-            try:
-                with pyzipper.AESZipFile(zip_bytes, 'r') as zf:
-                    zf.setpassword(tfa_code.encode('utf-8'))
-                    file_list = zf.namelist()
-                    valid_files = [f for f in file_list if not f.endswith('/')]
-                    if "zip_files" not in product_inventory["Countries"]["items"][country_name]:
-                        product_inventory["Countries"]["items"][country_name]["zip_files"] = []
-                    product_inventory["Countries"]["items"][country_name]["zip_files"].append({
-                        "zip_bytes": zip_bytes_list,
-                        "2fa": tfa_code,
-                        "extracted_files": valid_files
-                    })
-                    save_inventory()
-                    if lang_code == "en":
-                        suc_z = f"✅ Successfully added ZIP stock for Telegram country {country_name}!\n📁 Total valid files: {len(valid_files)}\n🔐 Password / 2FA: {tfa_code}"
-                    else:
-                        suc_z = f"✅ 成功为电报国家 {country_name} 添加 ZIP 库存！\n📁 有效文件总数: {len(valid_files)}\n🔐 密码 / 2FA: {tfa_code}"
-                    bot.send_message(message.chat.id, suc_z, reply_markup=get_admin_panel_keyboard(user_id))
-            except Exception as e:
-                err_pw = f"❌ Password Error!\nError details: {str(e)}" if lang_code == "en" else f"❌ 密码错误！\n错误详情: {str(e)}"
-                bot.send_message(message.chat.id, err_pw, reply_markup=get_admin_panel_keyboard(user_id))
-        user_states.pop(user_id, None)
-        temp_admin_data.pop(user_id, None)
-        temp_admin_data.pop(f"zip_bytes_{user_id}", None)
-        return
-
-    is_products = text in [LANG["en"]["menu_products"], LANG["zh"]["menu_products"]]
-    is_account = text in [LANG["en"]["menu_account"], LANG["zh"]["menu_account"]]
-    is_deposit = text in [LANG["en"]["menu_deposit"], LANG["zh"]["menu_deposit"]]
-    is_support = text in [LANG["en"]["menu_support"], LANG["zh"]["menu_support"]]
-    is_admin_menu = text in [LANG["en"]["menu_admin"], LANG["zh"]["menu_admin"]]
-
-    if any([is_products, is_account, is_deposit, is_support, is_admin_menu]):
-        user_states.pop(user_id, None)
-
-    if is_admin_menu:
-        if not is_admin(user_id):
-            unauth_txt = "❌ Unauthorized." if lang_code == "en" else "❌ 未授权。"
-            bot.send_message(message.chat.id, unauth_txt)
-            return
-        admin_w = "🛠️ Welcome to Admin Panel\n\nChoose an option below:" if lang_code == "en" else "🛠️ 欢迎来到管理面板\n\n在下方选择一个选项："
-        bot.send_message(message.chat.id, admin_w, reply_markup=get_admin_panel_keyboard(user_id))
-        return
-    elif is_products:
-        bot.send_message(message.chat.id, t["products"], reply_markup=get_products_categories_keyboard(user_id))
-    elif is_deposit:
-        user_states[user_id] = "waiting_for_deposit"
-        bot.send_message(message.chat.id, t["deposit"], reply_markup=get_select_amount_keyboard(user_id))
-    elif is_account:
-        user = message.from_user
-        username = f"@{user.username}" if user.username else "N/A"
-        name = user.first_name or "N/A"
-        balance_val = user_balances.get(user_id, 0.00)
-        purchased_total = len(user_purchases.get(user_id, []))
-        account_text = t["account"].format(user_id=user.id, username=username, name=name, balance=balance_val, purchased_total=purchased_total)
-        bot.send_message(message.chat.id, account_text, reply_markup=get_account_keyboard(user_id))
-    elif is_support:
-        support_msg = t["support"].format(support_user=support_admin_username)
-        bot.send_message(message.chat.id, support_msg)
 
 def process_product_purchase(chat_id, user_id, item_key, qty):
     lang_code = get_lang(user_id)
     t = LANG[lang_code]
-    
+
     target_item = None
     for cat_k, cat_v in product_inventory.items():
         if item_v := cat_v.get("items", {}).get(item_key):
@@ -1229,8 +1230,7 @@ def process_product_purchase(chat_id, user_id, item_key, qty):
             break
 
     if target_item is None:
-        err_pn = "❌ Product not found." if lang_code == "en" else "❌ 未找到产品。"
-        bot.send_message(chat_id, err_pn)
+        bot.send_message(chat_id, "❌ Product not found." if lang_code == "en" else "❌ 未找到产品。")
         return
 
     price_per_unit = target_item.get("price", 1.00)
@@ -1240,26 +1240,32 @@ def process_product_purchase(chat_id, user_id, item_key, qty):
     zip_total_files = sum(len(zf.get("extracted_files", [])) for zf in zip_list)
     total_stock = len(accounts_list) + zip_total_files
     if total_stock < qty:
-        bot.send_message(chat_id, f"{t['insufficient_stock']} {total_stock} items.", reply_markup=get_main_menu_keyboard(chat_id))
+        bot.send_message(chat_id, f"{t['insufficient_stock']} {total_stock} items.", reply_markup=get_main_menu_keyboard(user_id))
         return
-    total_price = price_per_unit * qty
+
+    total_price = round(price_per_unit * qty, 2)
     user_balance = user_balances.get(user_id, 0.00)
     if user_balance < total_price:
         bal_err_txt = f"{t['insufficient_balance']} ${total_price:.2f}\n{t['balance_text']} ${user_balance:.2f}"
-        bot.send_message(chat_id, bal_err_txt, reply_markup=get_main_menu_keyboard(chat_id))
+        bot.send_message(chat_id, bal_err_txt, reply_markup=get_main_menu_keyboard(user_id))
         return
-    user_balances[user_id] = user_balance - total_price
 
+    delivered_count = 0
     for _ in range(qty):
         try:
             while len(zip_list) > 0 and len(zip_list[0].get("extracted_files", [])) == 0:
                 zip_list.pop(0)
+
             if len(zip_list) > 0:
                 zip_item = zip_list[0]
-                orig_zip_bytes = bytes(zip_item["zip_bytes"])
+                if "zip_b64" in zip_item:
+                    orig_zip_bytes = base64.b64decode(zip_item["zip_b64"])
+                else:
+                    orig_zip_bytes = bytes(zip_item["zip_bytes"])
                 tfa_code = zip_item["2fa"]
                 files_in_zip = zip_item["extracted_files"]
-                target_file_name = files_in_zip.pop(0)
+                target_file_name = files_in_zip[0]
+
                 single_zip_buffer = io.BytesIO()
                 with pyzipper.AESZipFile(single_zip_buffer, 'w', compression=pyzipper.ZIP_DEFLATED, encryption=pyzipper.WZ_AES) as new_zip:
                     new_zip.setpassword(tfa_code.encode('utf-8'))
@@ -1268,40 +1274,39 @@ def process_product_purchase(chat_id, user_id, item_key, qty):
                         file_data = orig_zip.read(target_file_name)
                         new_zip.writestr(os.path.basename(target_file_name), file_data)
                 single_zip_buffer.seek(0)
+
+                files_in_zip.pop(0)
                 if len(files_in_zip) == 0:
                     zip_list.pop(0)
+
+                user_balances[user_id] = round(user_balances.get(user_id, 0.0) - price_per_unit, 2)
                 purchase_text = f"Bought {item_key} (ZIP file) for ${price_per_unit:.2f}"
-                if user_id not in user_purchases:
-                    user_purchases[user_id] = []
-                user_purchases[user_id].append({"text": purchase_text, "timestamp": time.time()})
-                save_user_data(user_id)
-                save_inventory()
+                user_purchases.setdefault(user_id, []).append({"text": purchase_text, "timestamp": time.time()})
+                delivered_count += 1
+
                 file_short_name = os.path.basename(target_file_name)
-                
                 if lang_code == "en":
                     caption_text = f"✅ Purchase Successful!\n\n📦 Item: {item_key}\n📁 File: {file_short_name}\n🔐 2FA & ZIP Password: {tfa_code}\n💵 Paid: ${price_per_unit:.2f}\n\nRemaining Balance: ${user_balances[user_id]:.2f}"
                 else:
                     caption_text = f"✅ 购买成功！\n\n📦 项目: {item_key}\n📁 文件: {file_short_name}\n🔐 2FA & ZIP 密码: {tfa_code}\n💵 支付: ${price_per_unit:.2f}\n\n剩余余额: ${user_balances[user_id]:.2f}"
 
                 bot.send_document(
-                    chat_id, 
-                    document=single_zip_buffer, 
-                    visible_file_name=f"{item_key}_{file_short_name}.zip", 
+                    chat_id,
+                    document=single_zip_buffer,
+                    visible_file_name=f"{item_key}_{file_short_name}.zip",
                     caption=caption_text
                 )
             elif len(accounts_list) > 0:
                 purchased_item = accounts_list.pop(0)
-                
+                user_balances[user_id] = round(user_balances.get(user_id, 0.0) - price_per_unit, 2)
+                delivered_count += 1
+
                 if "number" in purchased_item:
                     acc_num = purchased_item.get("number", "N/A")
                     acc_2fa = purchased_item.get("2fa", "N/A")
                     purchase_text = f"Bought {item_key}: {acc_num} for ${price_per_unit:.2f}"
-                    if user_id not in user_purchases:
-                        user_purchases[user_id] = []
-                    user_purchases[user_id].append({"text": purchase_text, "timestamp": time.time()})
-                    save_user_data(user_id)
-                    save_inventory()
-                    
+                    user_purchases.setdefault(user_id, []).append({"text": purchase_text, "timestamp": time.time()})
+
                     if lang_code == "en":
                         success_text = (
                             f"✅ **Purchase Successful!**\n\n"
@@ -1325,14 +1330,10 @@ def process_product_purchase(chat_id, user_id, item_key, qty):
                     acc_pass = purchased_item.get("password", "N/A")
                     acc_rec = purchased_item.get("recovery", "")
                     rec_text = f"\n🛡️ Recovery: `{acc_rec}`" if acc_rec and acc_rec != "N/A" else ""
-                    
+
                     purchase_text = f"Bought {item_key}: {acc_info} for ${price_per_unit:.2f}"
-                    if user_id not in user_purchases:
-                        user_purchases[user_id] = []
-                    user_purchases[user_id].append({"text": purchase_text, "timestamp": time.time()})
-                    save_user_data(user_id)
-                    save_inventory()
-                    
+                    user_purchases.setdefault(user_id, []).append({"text": purchase_text, "timestamp": time.time()})
+
                     if lang_code == "en":
                         success_text = (
                             f"✅ **Purchase Successful!**\n\n"
@@ -1354,21 +1355,18 @@ def process_product_purchase(chat_id, user_id, item_key, qty):
                 bot.send_message(chat_id, success_text, parse_mode="Markdown")
         except Exception as e:
             print(f"Error in delivering product: {e}")
-            err_del = f"❌ Error delivering item: {str(e)}" if lang_code == "en" else f"❌ 发货出错: {str(e)}"
-            bot.send_message(chat_id, err_del)
+            bot.send_message(chat_id, f"❌ Error delivering item: {str(e)}" if lang_code == "en" else f"❌ 发货出错: {str(e)}")
+            break
+
+    if delivered_count > 0:
+        save_user_data(user_id)
+        save_inventory()
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_inline_clicks(call):
     user_id = call.from_user.id
-    all_users.add(user_id)
-    if user_id not in user_balances:
-        user_balances[user_id] = 0.00
-    if user_id not in user_purchases:
-        user_purchases[user_id] = []
-    if user_id not in user_deposits:
-        user_deposits[user_id] = []
-    save_user_data(user_id)
-    
+    ensure_user_registered(user_id)
+
     lang_code = get_lang(user_id)
     t = LANG[lang_code]
 
@@ -1379,11 +1377,7 @@ def handle_inline_clicks(call):
         bot.answer_callback_query(call.id, "Change Support Username")
         try:
             sup_prompt = "📞 Change Support Username\n\nPlease send new support username (e.g., @YourUsername):" if lang_code == "en" else "📞 更改客服用户名\n\n请发送新的客服用户名（例如：@YourUsername）："
-            bot.edit_message_text(
-                sup_prompt,
-                call.message.chat.id, 
-                call.message.message_id
-            )
+            bot.edit_message_text(sup_prompt, call.message.chat.id, call.message.message_id)
         except Exception:
             pass
         return
@@ -1395,7 +1389,7 @@ def handle_inline_clicks(call):
         try:
             tg_txt = "📱 Telegram Account Management\n\nChoose an option below:" if lang_code == "en" else "📱 电报账号管理\n\n在下方选择一个选项："
             bot.edit_message_text(tg_txt, call.message.chat.id, call.message.message_id, reply_markup=get_telegram_admin_menu_keyboard(user_id))
-        except:
+        except Exception:
             pass
         return
 
@@ -1406,7 +1400,7 @@ def handle_inline_clicks(call):
         try:
             vpn_m_txt = "🔒 VPN Management\n\nChoose an option below:" if lang_code == "en" else "🔒 VPN 服务管理\n\n在下方选择一个选项："
             bot.edit_message_text(vpn_m_txt, call.message.chat.id, call.message.message_id, reply_markup=get_vpn_admin_menu_keyboard(user_id))
-        except:
+        except Exception:
             pass
         return
 
@@ -1417,11 +1411,10 @@ def handle_inline_clicks(call):
         try:
             gg_m_txt = "📧 Gmail & Google Voice Management\n\nChoose an option below:" if lang_code == "en" else "📧 Gmail & 谷歌Voice管理\n\n在下方选择一个选项："
             bot.edit_message_text(gg_m_txt, call.message.chat.id, call.message.message_id, reply_markup=get_gmail_gv_admin_menu_keyboard(user_id))
-        except:
+        except Exception:
             pass
         return
 
-    # --- VPN PRICE MENU HANDLER ---
     if call.data == "admin_vpn_price_menu":
         if not is_admin(user_id):
             return
@@ -1435,7 +1428,7 @@ def handle_inline_clicks(call):
         bot.answer_callback_query(call.id, "VPN Price Menu")
         try:
             bot.edit_message_text("💵 VPN Price Management:\nSelect a VPN package to change its price:" if lang_code == "en" else "💵 VPN 价格管理：\n选择要更改价格的 VPN 套餐：", call.message.chat.id, call.message.message_id, reply_markup=markup)
-        except:
+        except Exception:
             pass
         return
 
@@ -1449,11 +1442,10 @@ def handle_inline_clicks(call):
         try:
             p_text = f"💵 Enter new price for VPN (Current: ${curr_price:.2f}):" if lang_code == "en" else f"💵 输入 VPN 的新价格（当前: ${curr_price:.2f}）："
             bot.edit_message_text(p_text, call.message.chat.id, call.message.message_id)
-        except:
+        except Exception:
             pass
         return
 
-    # --- GMAIL PRICE MENU HANDLER ---
     if call.data == "admin_gmail_price_menu":
         if not is_admin(user_id):
             return
@@ -1467,7 +1459,7 @@ def handle_inline_clicks(call):
         bot.answer_callback_query(call.id, "Gmail Price Menu")
         try:
             bot.edit_message_text("💵 Gmail Price Management:\nSelect a Gmail package to change its price:" if lang_code == "en" else "💵 Gmail 价格管理：\n选择要更改价格的 Gmail 套餐：", call.message.chat.id, call.message.message_id, reply_markup=markup)
-        except:
+        except Exception:
             pass
         return
 
@@ -1481,11 +1473,10 @@ def handle_inline_clicks(call):
         try:
             p_text = f"💵 Enter new price for Gmail (Current: ${curr_price:.2f}):" if lang_code == "en" else f"💵 输入 Gmail 的新价格（当前: ${curr_price:.2f}）："
             bot.edit_message_text(p_text, call.message.chat.id, call.message.message_id)
-        except:
+        except Exception:
             pass
         return
 
-    # --- GOOGLE VOICE PRICE MENU HANDLER ---
     if call.data == "admin_gv_price_menu":
         if not is_admin(user_id):
             return
@@ -1499,7 +1490,7 @@ def handle_inline_clicks(call):
         bot.answer_callback_query(call.id, "Google Voice Price Menu")
         try:
             bot.edit_message_text("💵 Google Voice Price Management:\nSelect a Google Voice package to change its price:" if lang_code == "en" else "💵 谷歌Voice 价格管理：\n选择要更改价格的谷歌Voice套餐：", call.message.chat.id, call.message.message_id, reply_markup=markup)
-        except:
+        except Exception:
             pass
         return
 
@@ -1513,7 +1504,7 @@ def handle_inline_clicks(call):
         try:
             p_text = f"💵 Enter new price for Google Voice (Current: ${curr_price:.2f}):" if lang_code == "en" else f"💵 输入谷歌Voice的新价格（当前: ${curr_price:.2f}）："
             bot.edit_message_text(p_text, call.message.chat.id, call.message.message_id)
-        except:
+        except Exception:
             pass
         return
 
@@ -1525,7 +1516,7 @@ def handle_inline_clicks(call):
         try:
             vpn_add_txt = "🔒 Enter VPN Package Name (e.g., ExpressVPN / NordVPN):\n(Do NOT include duration here, it will be asked next)" if lang_code == "en" else "🔒 输入 VPN 套餐名称（例如：ExpressVPN / NordVPN）：\n（请勿在此包含时长，下一步会询问）"
             bot.edit_message_text(vpn_add_txt, call.message.chat.id, call.message.message_id)
-        except:
+        except Exception:
             pass
         return
 
@@ -1551,7 +1542,7 @@ def handle_inline_clicks(call):
         try:
             vpn_ed_txt = "🔒 Select VPN to add stock or delete:" if lang_code == "en" else "🔒 选择要添加库存或删除的 VPN："
             bot.edit_message_text(vpn_ed_txt, call.message.chat.id, call.message.message_id, reply_markup=markup)
-        except:
+        except Exception:
             pass
         return
 
@@ -1564,7 +1555,7 @@ def handle_inline_clicks(call):
         try:
             vpn_stk_txt = "📥 Send stock accounts in format:\n`username password` (one per line):" if lang_code == "en" else "📥 发送库存账号格式：\n`username password`（每行一个）："
             bot.edit_message_text(vpn_stk_txt, call.message.chat.id, call.message.message_id, parse_mode="Markdown")
-        except:
+        except Exception:
             pass
         return
 
@@ -1579,7 +1570,7 @@ def handle_inline_clicks(call):
         try:
             vpn_del_suc = "✅ VPN package deleted successfully!" if lang_code == "en" else "✅ VPN 套餐删除成功！"
             bot.edit_message_text(vpn_del_suc, call.message.chat.id, call.message.message_id, reply_markup=get_vpn_admin_menu_keyboard(user_id))
-        except:
+        except Exception:
             pass
         return
 
@@ -1591,7 +1582,7 @@ def handle_inline_clicks(call):
         try:
             gg_add_p = "📧 Choose Category to Add:\n\n1. Gmail Accounts\n2. Google Voice\n\n(Send 1 or 2):" if lang_code == "en" else "📧 选择要添加的分类：\n\n1. Gmail 邮箱\n2. 谷歌 Voice\n\n（发送 1 或 2）："
             bot.edit_message_text(gg_add_p, call.message.chat.id, call.message.message_id)
-        except:
+        except Exception:
             pass
         return
 
@@ -1618,7 +1609,7 @@ def handle_inline_clicks(call):
         try:
             gg_ed_txt = "📧 Select Gmail or Google Voice to add stock or delete:" if lang_code == "en" else "📧 选择要添加库存或删除的 Gmail 或 谷歌Voice："
             bot.edit_message_text(gg_ed_txt, call.message.chat.id, call.message.message_id, reply_markup=markup)
-        except:
+        except Exception:
             pass
         return
 
@@ -1631,7 +1622,7 @@ def handle_inline_clicks(call):
         try:
             gg_s_txt = "📥 Send accounts stock in format (one per line):\n`email password [recovery]` (Recovery optional):" if lang_code == "en" else "📥 发送账号库存格式（每行一个）：\n`email password [recovery]`（辅助邮箱可选）："
             bot.edit_message_text(gg_s_txt, call.message.chat.id, call.message.message_id, parse_mode="Markdown")
-        except:
+        except Exception:
             pass
         return
 
@@ -1648,7 +1639,7 @@ def handle_inline_clicks(call):
         try:
             item_del_suc = "✅ Item deleted successfully!" if lang_code == "en" else "✅ 项目删除成功！"
             bot.edit_message_text(item_del_suc, call.message.chat.id, call.message.message_id, reply_markup=get_gmail_gv_admin_menu_keyboard(user_id))
-        except:
+        except Exception:
             pass
         return
 
@@ -1656,51 +1647,56 @@ def handle_inline_clicks(call):
         if not is_admin(user_id):
             bot.answer_callback_query(call.id, "Unauthorized" if lang_code == "en" else "未授权", show_alert=True)
             return
-        
+
         action = "accept" if "accept" in call.data else "reject"
         dep_id = call.data.replace("dep_accept_", "").replace("dep_reject_", "")
-        
+
         if dep_id in pending_deposits:
             dep_info = pending_deposits.pop(dep_id)
             save_pending_deposits()
-            
-            target_uid = dep_info["user_id"]
-            amount = dep_info["amount"]
+
+            target_uid = int(dep_info["user_id"])
+            amount = float(dep_info["amount"])
             order_id = dep_info["order_id"]
-            
+
             if action == "accept":
                 old_bal = user_balances.get(target_uid, 0.0)
-                new_bal = old_bal + amount
-                user_balances[target_uid] = round(new_bal, 2)
-                
-                if target_uid not in user_deposits:
-                    user_deposits[target_uid] = []
-                user_deposits[target_uid].append({"text": f"Deposited ${amount:.2f} (Order: {order_id})", "timestamp": time.time()})
+                new_bal = round(old_bal + amount, 2)
+                user_balances[target_uid] = new_bal
+
+                user_deposits.setdefault(target_uid, []).append({
+                    "text": f"Deposited ${amount:.2f} (Order: {order_id})",
+                    "timestamp": time.time()
+                })
                 save_user_data(target_uid)
-                
+
                 bot.answer_callback_query(call.id, "Deposit Accepted & Credited!" if lang_code == "en" else "充值已接受并到账！", show_alert=True)
                 try:
                     acc_edit_txt = f"✅ Deposit Accepted!\nOrder ID: {order_id}\nCredited Amount: ${amount:.2f} to User {target_uid}" if lang_code == "en" else f"✅ 充值已接受！\n订单号: {order_id}\n已向用户 {target_uid} 入账: ${amount:.2f}"
                     bot.edit_message_text(acc_edit_txt, call.message.chat.id, call.message.message_id)
-                except:
+                except Exception:
                     pass
-                
                 try:
                     u_acc_msg = f"✅ Your deposit has been accepted successfully!\n\n💰 ${amount:.2f} has been credited to your account." if lang_code == "en" else f"✅ 您的充值已被成功受理！\n\n💰 ${amount:.2f} 已存入您的账户。"
                     bot.send_message(target_uid, u_acc_msg)
-                except:
+                except Exception:
                     pass
             else:
+                txid_val = dep_info.get("txid", "")
+                if txid_val and txid_val.lower() in used_txids:
+                    used_txids.remove(txid_val.lower())
+                    save_used_txids()
+
                 bot.answer_callback_query(call.id, "Deposit Rejected!" if lang_code == "en" else "充值已被拒绝！", show_alert=True)
                 try:
                     rej_edit_txt = f"❌ Deposit Rejected!\nOrder ID: {order_id} for User {target_uid}" if lang_code == "en" else f"❌ 充值已被拒绝！\n用户 {target_uid} 的订单号: {order_id}"
                     bot.edit_message_text(rej_edit_txt, call.message.chat.id, call.message.message_id)
-                except:
+                except Exception:
                     pass
                 try:
                     u_rej_msg = f"❌ Sorry, your deposit request has been rejected by admin.\nOrder ID: {order_id}" if lang_code == "en" else f"❌ 很抱歉，您的充值请求已被管理员拒绝。\n订单号: {order_id}"
                     bot.send_message(target_uid, u_rej_msg)
-                except:
+                except Exception:
                     pass
         else:
             bot.answer_callback_query(call.id, "Request already processed or expired!" if lang_code == "en" else "请求已处理或已过期！", show_alert=True)
@@ -1710,20 +1706,14 @@ def handle_inline_clicks(call):
         order_id = call.data.replace("send_order_id_", "")
         user_states[user_id] = f"waiting_for_txid_{order_id}"
         bot.answer_callback_query(call.id, "Send Order ID / TxID")
-        
+
         if lang_code == "en":
-            prompt_text = (
-                "📤 Please send your payment Transaction ID (TxID) or Proof:\n\n"
-                f"Order ID: {order_id}"
-            )
+            prompt_text = f"📤 Please send your payment Transaction ID (TxID) or Proof:\n\nOrder ID: {order_id}"
         else:
-            prompt_text = (
-                "📤 请发送您的付款交易单号 (TxID) 或凭证截图：\n\n"
-                f"订单号: {order_id}"
-            )
+            prompt_text = f"📤 请发送您的付款交易单号 (TxID) 或凭证截图：\n\n订单号: {order_id}"
         try:
             bot.edit_message_text(prompt_text, call.message.chat.id, call.message.message_id)
-        except:
+        except Exception:
             bot.send_message(call.message.chat.id, prompt_text)
         return
 
@@ -1733,25 +1723,14 @@ def handle_inline_clicks(call):
             return
         bot.answer_callback_query(call.id, "Management")
         total_users = len(all_users)
-        if lang_code == "en":
-            text = (
-                f"👥 Management\n"
-                f"──────────────────────\n"
-                f"👥 Total Users: {total_users}\n"
-                f"──────────────────────\n"
-                f"Select option below:"
-            )
-        else:
-            text = (
-                f"👥 用户管理\n"
-                f"──────────────────────\n"
-                f"👥 总用户数: {total_users}\n"
-                f"──────────────────────\n"
-                f"请在下方选择选项："
-            )
+        text = (
+            f"👥 Management\n──────────────────────\n👥 Total Users: {total_users}\n──────────────────────\nSelect option below:"
+            if lang_code == "en" else
+            f"👥 用户管理\n──────────────────────\n👥 总用户数: {total_users}\n──────────────────────\n请在下方选择选项："
+        )
         try:
             bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=get_management_keyboard(user_id))
-        except:
+        except Exception:
             bot.send_message(call.message.chat.id, text, reply_markup=get_management_keyboard(user_id))
         return
 
@@ -1760,17 +1739,18 @@ def handle_inline_clicks(call):
             return
         try:
             page = int(call.data.replace("mgmt_users_", ""))
-        except:
+        except Exception:
             page = 0
         bot.answer_callback_query(call.id, f"Page {page+1}")
         markup, total_pages, total = get_users_list_keyboard(page, 10, user_id)
-        if lang_code == "en":
-            text = f"👥 All Users List\n──────────────────────\nTotal Users: {total}\nClick a user to edit balance:"
-        else:
-            text = f"👥 所有用户列表\n──────────────────────\n总用户数: {total}\n点击用户可编辑余额："
+        text = (
+            f"👥 All Users List\n──────────────────────\nTotal Users: {total}\nClick a user to edit balance:"
+            if lang_code == "en" else
+            f"👥 所有用户列表\n──────────────────────\n总用户数: {total}\n点击用户可编辑余额："
+        )
         try:
             bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
-        except:
+        except Exception:
             pass
         return
 
@@ -1782,7 +1762,7 @@ def handle_inline_clicks(call):
         try:
             s_u_txt = "🔍 Search User\n\nPlease send User ID (e.g., 123456789):" if lang_code == "en" else "🔍 搜索用户\n\n请发送用户 ID（例如：123456789）："
             bot.edit_message_text(s_u_txt, call.message.chat.id, call.message.message_id)
-        except:
+        except Exception:
             pass
         return
 
@@ -1795,13 +1775,12 @@ def handle_inline_clicks(call):
         for uid in top:
             bal = user_balances.get(int(uid), 0.0)
             markup.add(types.InlineKeyboardButton(f"👤 {uid} | 💰 ${bal:.2f}", callback_data=f"mgmt_user_{uid}"))
-        
         back_m_txt = "🔙 Back to Management" if lang_code == "en" else "🔙 返回用户管理"
         markup.add(types.InlineKeyboardButton(back_m_txt, callback_data="admin_management"))
         try:
             top_txt = "💰 Top 10 Balance Users:" if lang_code == "en" else "💰 余额最高的 10 位用户："
             bot.edit_message_text(top_txt, call.message.chat.id, call.message.message_id, reply_markup=markup)
-        except:
+        except Exception:
             pass
         return
 
@@ -1812,7 +1791,7 @@ def handle_inline_clicks(call):
         bot.answer_callback_query(call.id, f"User {target_uid}")
         try:
             bot.edit_message_text(get_user_detail_text(target_uid, user_id), call.message.chat.id, call.message.message_id, reply_markup=get_user_detail_keyboard(target_uid, user_id))
-        except:
+        except Exception:
             bot.send_message(call.message.chat.id, get_user_detail_text(target_uid, user_id), reply_markup=get_user_detail_keyboard(target_uid, user_id))
         return
 
@@ -1823,23 +1802,18 @@ def handle_inline_clicks(call):
         action, target_uid = rest.split("_")
         user_states[user_id] = f"waiting_for_mgmt_bal_{action}_{target_uid}"
         old_bal = user_balances.get(int(target_uid), 0.0)
-        
+
         if lang_code == "en":
             label = {"add": "➕ Add Balance", "sub": "➖ Subtract Balance", "set": "✏️ Set Balance"}[action]
+            bal_edit_p = f"{label}\n\n👤 User ID: {target_uid}\n💰 Current Balance: ${old_bal:.2f}\n\nPlease send amount (e.g., 10):"
         else:
             label = {"add": "➕ 增加余额", "sub": "➖ 扣除余额", "set": "✏️ 设置余额"}[action]
-            
+            bal_edit_p = f"{label}\n\n👤 用户 ID: {target_uid}\n💰 当前余额: ${old_bal:.2f}\n\n请发送金额（例如：10）："
+
         bot.answer_callback_query(call.id, label)
         try:
-            if lang_code == "en":
-                bal_edit_p = f"{label}\n\n👤 User ID: {target_uid}\n💰 Current Balance: ${old_bal:.2f}\n\nPlease send amount (e.g., 10):"
-            else:
-                bal_edit_p = f"{label}\n\n👤 用户 ID: {target_uid}\n💰 当前余额: ${old_bal:.2f}\n\n请发送金额（例如：10）："
-            bot.edit_message_text(
-                bal_edit_p,
-                call.message.chat.id, call.message.message_id
-            )
-        except:
+            bot.edit_message_text(bal_edit_p, call.message.chat.id, call.message.message_id)
+        except Exception:
             pass
         return
 
@@ -1852,20 +1826,17 @@ def handle_inline_clicks(call):
         save_user_data(target_uid)
         bot.answer_callback_query(call.id, "Balance Reset to $0" if lang_code == "en" else "余额已重置为 $0", show_alert=True)
         try:
-            if lang_code == "en":
-                res_txt = f"✅ Balance Reset!\n\n👤 User ID: {target_uid}\n💰 Old: ${old_bal:.2f} → New: $0.00"
-            else:
-                res_txt = f"✅ 余额已重置！\n\n👤 用户 ID: {target_uid}\n💰 原余额: ${old_bal:.2f} → 新余额: $0.00"
-            bot.edit_message_text(
-                res_txt,
-                call.message.chat.id, call.message.message_id, reply_markup=get_user_detail_keyboard(target_uid, user_id)
+            res_txt = (
+                f"✅ Balance Reset!\n\n👤 User ID: {target_uid}\n💰 Old: ${old_bal:.2f} → New: $0.00"
+                if lang_code == "en" else
+                f"✅ 余额已重置！\n\n👤 用户 ID: {target_uid}\n💰 原余额: ${old_bal:.2f} → 新余额: $0.00"
             )
-        except:
+            bot.edit_message_text(res_txt, call.message.chat.id, call.message.message_id, reply_markup=get_user_detail_keyboard(target_uid, user_id))
+        except Exception:
             pass
         try:
-            u_res_msg = "💰 Your balance has been reset to $0.00 by Admin." if lang_code == "en" else "💰 管理员已将您的余额重置为 $0.00。"
-            bot.send_message(target_uid, u_res_msg)
-        except:
+            bot.send_message(target_uid, "💰 Your balance has been reset to $0.00 by Admin." if lang_code == "en" else "💰 管理员已将您的余额重置为 $0.00。")
+        except Exception:
             pass
         return
 
@@ -1878,12 +1849,10 @@ def handle_inline_clicks(call):
         txt = "\n".join([p.get("text", "") if isinstance(p, dict) else str(p) for p in pur[-20:]]) or no_pur
         bot.answer_callback_query(call.id, "Purchase History" if lang_code == "en" else "购买历史")
         markup = types.InlineKeyboardMarkup()
-        b_txt = "🔙 Back" if lang_code == "en" else "🔙 返回"
-        markup.add(types.InlineKeyboardButton(b_txt, callback_data=f"mgmt_user_{target_uid}"))
+        markup.add(types.InlineKeyboardButton("🔙 Back" if lang_code == "en" else "🔙 返回", callback_data=f"mgmt_user_{target_uid}"))
         try:
-            h_pur_txt = f"📦 Purchase History - {target_uid}\n──────────────────────\n{txt}" if lang_code == "en" else f"📦 购买历史 - {target_uid}\n──────────────────────\n{txt}"
-            bot.edit_message_text(h_pur_txt, call.message.chat.id, call.message.message_id, reply_markup=markup)
-        except:
+            bot.edit_message_text(f"📦 Purchase History - {target_uid}\n──────────────────────\n{txt}", call.message.chat.id, call.message.message_id, reply_markup=markup)
+        except Exception:
             pass
         return
 
@@ -1896,12 +1865,10 @@ def handle_inline_clicks(call):
         txt = "\n".join([d.get("text", "") if isinstance(d, dict) else str(d) for d in dep[-20:]]) or no_dep
         bot.answer_callback_query(call.id, "Deposit History" if lang_code == "en" else "充值历史")
         markup = types.InlineKeyboardMarkup()
-        b_txt = "🔙 Back" if lang_code == "en" else "🔙 返回"
-        markup.add(types.InlineKeyboardButton(b_txt, callback_data=f"mgmt_user_{target_uid}"))
+        markup.add(types.InlineKeyboardButton("🔙 Back" if lang_code == "en" else "🔙 返回", callback_data=f"mgmt_user_{target_uid}"))
         try:
-            h_dep_txt = f"💰 Deposit History - {target_uid}\n──────────────────────\n{txt}" if lang_code == "en" else f"💰 充值历史 - {target_uid}\n──────────────────────\n{txt}"
-            bot.edit_message_text(h_dep_txt, call.message.chat.id, call.message.message_id, reply_markup=markup)
-        except:
+            bot.edit_message_text(f"💰 Deposit History - {target_uid}\n──────────────────────\n{txt}", call.message.chat.id, call.message.message_id, reply_markup=markup)
+        except Exception:
             pass
         return
 
@@ -1913,23 +1880,17 @@ def handle_inline_clicks(call):
         else:
             user_languages[user_id] = "en"
             alert_text = "Language successfully changed to English!"
-            
+
         save_user_data(user_id)
         bot.answer_callback_query(call.id, alert_text)
         lang_code = get_lang(user_id)
         t = LANG[lang_code]
         try:
-            bot.edit_message_text(
-                t["language"],
-                call.message.chat.id,
-                call.message.message_id,
-                reply_markup=get_language_keyboard(user_id)
-            )
+            bot.edit_message_text(t["language"], call.message.chat.id, call.message.message_id, reply_markup=get_language_keyboard(user_id))
         except Exception:
             pass
         try:
-            update_msg = "👇 Menu updated:" if lang_code == "en" else "👇 菜单已更新："
-            bot.send_message(call.message.chat.id, update_msg, reply_markup=get_main_menu_keyboard(user_id))
+            bot.send_message(call.message.chat.id, "👇 Menu updated:" if lang_code == "en" else "👇 菜单已更新：", reply_markup=get_main_menu_keyboard(user_id))
         except Exception:
             pass
         return
@@ -1946,6 +1907,13 @@ def handle_inline_clicks(call):
             bot.edit_message_text(account_text, call.message.chat.id, call.message.message_id, reply_markup=get_account_keyboard(user_id))
         except Exception:
             pass
+        return
+
+    if call.data.startswith("qty_other_"):
+        item_key = call.data.replace("qty_other_", "")
+        user_states[user_id] = f"waiting_for_custom_qty_{item_key}"
+        bot.answer_callback_query(call.id, "Enter custom quantity" if lang_code == "en" else "输入自定义数量")
+        bot.send_message(call.message.chat.id, "🔢 Please enter the quantity you want to buy (e.g., 4, 15):" if lang_code == "en" else "🔢 请输入您要购买的数量（例如：4, 15）：")
         return
 
     if call.data.startswith("qty_"):
@@ -1966,10 +1934,11 @@ def handle_inline_clicks(call):
         bot.answer_callback_query(call.id, cat_key)
         try:
             cat_name = product_inventory.get(cat_key, {}).get("names", {}).get(lang_code, cat_key)
-            if lang_code == "en":
-                category_text = f"📁 Category: {cat_name}\n\nSelect an item below to buy:"
-            else:
-                category_text = f"📁 分类: {cat_name}\n\n请在下方选择要购买的项目："
+            category_text = (
+                f"📁 Category: {cat_name}\n\nSelect an item below to buy:"
+                if lang_code == "en" else
+                f"📁 分类: {cat_name}\n\n请在下方选择要购买的项目："
+            )
             bot.edit_message_text(category_text, call.message.chat.id, call.message.message_id, reply_markup=get_category_items_keyboard(cat_key, user_id))
         except Exception:
             pass
@@ -1980,14 +1949,14 @@ def handle_inline_clicks(call):
         cat_key = parts[0]
         item_key = parts[1]
         bot.answer_callback_query(call.id, item_key)
-        
+
         target_item = product_inventory.get(cat_key, {}).get("items", {}).get(item_key, {})
         price = target_item.get("price", 1.00)
         duration = f" ({target_item.get('duration')})" if target_item.get('duration') else ""
-        
+
         zip_stock = sum(len(zf.get("extracted_files", [])) for zf in target_item.get("zip_files", []))
         stock_count = len(target_item.get("accounts", [])) + zip_stock
-        
+
         markup = types.InlineKeyboardMarkup(row_width=1)
         cart_sel_text = "🛒 Select Quantity" if lang_code == "en" else "🛒 选择数量"
         markup.add(
@@ -2008,10 +1977,11 @@ def handle_inline_clicks(call):
         item_key = call.data.replace("buy_confirm_", "")
         bot.answer_callback_query(call.id, item_key)
         try:
-            if lang_code == "en":
-                proto_qty_text = f"🔢 Select Quantity for {item_key}:\n\nChoose how many items you want to buy:"
-            else:
-                proto_qty_text = f"🔢 选择 {item_key} 的数量：\n\n请选择您要购买的数量："
+            proto_qty_text = (
+                f"🔢 Select Quantity for {item_key}:\n\nChoose how many items you want to buy:"
+                if lang_code == "en" else
+                f"🔢 选择 {item_key} 的数量：\n\n请选择您要购买的数量："
+            )
             bot.edit_message_text(proto_qty_text, call.message.chat.id, call.message.message_id, reply_markup=get_quantity_keyboard(item_key, user_id))
         except Exception:
             pass
@@ -2096,10 +2066,11 @@ def handle_inline_clicks(call):
         current_price = product_inventory["Countries"]["items"].get(country_name, {}).get("price", 1.00)
         bot.answer_callback_query(call.id, f"Edit Price {country_name}")
         try:
-            if lang_code == "en":
-                ed_pr_p = f"💵 Edit Price for Telegram Country: {country_name}\n\nCurrent Price: ${current_price:.2f}\n\nPlease send new price (e.g., 1.50 or 2):"
-            else:
-                ed_pr_p = f"💵 修改电报国家 {country_name} 的价格\n\n当前价格: ${current_price:.2f}\n\n请发送新价格（例如：1.50 或 2）："
+            ed_pr_p = (
+                f"💵 Edit Price for Telegram Country: {country_name}\n\nCurrent Price: ${current_price:.2f}\n\nPlease send new price (e.g., 1.50 or 2):"
+                if lang_code == "en" else
+                f"💵 修改电报国家 {country_name} 的价格\n\n当前价格: ${current_price:.2f}\n\n请发送新价格（例如：1.50 或 2）："
+            )
             bot.edit_message_text(ed_pr_p, call.message.chat.id, call.message.message_id)
         except Exception:
             pass
@@ -2155,10 +2126,7 @@ def handle_inline_clicks(call):
         markup = types.InlineKeyboardMarkup(row_width=1)
         countries = product_inventory.get("Countries", {}).get("items", {})
         for c in countries.keys():
-            if lang_code == "en":
-                markup.add(types.InlineKeyboardButton(f"🗂️ Telegram Country ({c})", callback_data=f"select_zip_country_{c}"))
-            else:
-                markup.add(types.InlineKeyboardButton(f"🗂️ 电报国家 ({c})", callback_data=f"select_zip_country_{c}"))
+            markup.add(types.InlineKeyboardButton(f"🗂️ Telegram Country ({c})" if lang_code == "en" else f"🗂️ 电报国家 ({c})", callback_data=f"select_zip_country_{c}"))
         markup.add(types.InlineKeyboardButton(t["back"], callback_data="admin_telegram_accounts_menu"))
         bot.answer_callback_query(call.id, "ZIP Menu")
         try:
@@ -2196,7 +2164,7 @@ def handle_inline_clicks(call):
         bot.answer_callback_query(call.id)
         return
 
-    if call.data == "btn_deposit_open" or call.data == "dep_confirm" or call.data == "▲ Deposit":
+    if call.data in ["btn_deposit_open", "dep_confirm", "▲ Deposit"]:
         try:
             bot.answer_callback_query(call.id, "Loading..." if lang_code == "en" else "加载中...")
             bot.edit_message_text(t["deposit"], call.message.chat.id, call.message.message_id, reply_markup=get_select_amount_keyboard(user_id))
@@ -2214,10 +2182,7 @@ def handle_inline_clicks(call):
                 selected_val = float(call.data.split("_")[1])
                 user_amounts[user_id] = selected_val
                 user_states[user_id] = "waiting_for_payment_method"
-                if lang_code == "en":
-                    payment_text = f"💰 Selected Amount: ${selected_val:.2f}\n\nPlease select your preferred payment method:"
-                else:
-                    payment_text = f"💰 已选金额： ${selected_val:.2f}\n\n请选择您的首选付款方式："
+                payment_text = f"💰 Selected Amount: ${selected_val:.2f}\n\nPlease select your preferred payment method:" if lang_code == "en" else f"💰 已选金额： ${selected_val:.2f}\n\n请选择您的首选付款方式："
                 bot.answer_callback_query(call.id, f"Selected ${selected_val:.2f}" if lang_code == "en" else f"已选择 ${selected_val:.2f}")
                 bot.edit_message_text(payment_text, call.message.chat.id, call.message.message_id, reply_markup=get_payment_methods_keyboard(user_id))
             except Exception:
@@ -2231,7 +2196,7 @@ def handle_inline_clicks(call):
             return
         order_id = f"ORD-{random.randint(100000, 999999)}"
         current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-        
+
         if call.data == "order_usdt_trc20":
             calculated_val = current_amount * (10.016 / 10.0)
             send_val = f"{calculated_val:.3f} USDT"
@@ -2251,11 +2216,9 @@ def handle_inline_clicks(call):
 
         temp_admin_data[f"order_temp_{user_id}"] = {"order_id": order_id, "method": currency_type}
         deposit_text = f"Deposited ${current_amount:.2f} (Order: {order_id})"
-        if user_id not in user_deposits:
-            user_deposits[user_id] = []
-        user_deposits[user_id].append({"text": deposit_text, "timestamp": time.time()})
+        user_deposits.setdefault(user_id, []).append({"text": deposit_text, "timestamp": time.time()})
         save_user_data(user_id)
-        
+
         if lang_code == "en":
             order_text = (
                 f"*[ ORDER CREATED ]*  {currency_type}\n"
@@ -2301,7 +2264,7 @@ def handle_inline_clicks(call):
             pass
         return
 
-    elif call.data == "go_main_menu" or call.data == "dep_cancel":
+    elif call.data in ["go_main_menu", "dep_cancel"]:
         bot.answer_callback_query(call.id, "MainMenu")
         user_states.pop(user_id, None)
         try:
@@ -2311,16 +2274,6 @@ def handle_inline_clicks(call):
         send_welcome(call.message)
 
 if __name__ == '__main__':
-    print("Loading data from Firebase...")
-    load_data_from_firebase()
-    set_bot_commands(bot)
-    
-    RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL", "https://telegram-nirupom-bot.onrender.com")
-    
-    bot.remove_webhook()
-    time.sleep(1)
-    bot.set_webhook(url=f"{RENDER_URL}/{TOKEN}")
-    
     port = int(os.environ.get("PORT", 8080))
     print(f"Webhook Bot is running on port {port}...")
     app.run(host='0.0.0.0', port=port)
